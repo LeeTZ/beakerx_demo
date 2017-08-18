@@ -41,7 +41,7 @@ define([
       'code': 'BNC3/GWA_BTC',
       'outlink': 'https://www.quandl.com/data/BNC3/GWA_BTC-BraveNewCoin-Daily-Global-Price-Index-for-Bitcoin',
       'frequency': 'Monthly',
-      'refreshed': '2 months ago, on 19 Jun 2017'
+      'refreshed': '2 months ago'
     },
     {
       'name': 'Zillow Real Estate Research',
@@ -50,7 +50,7 @@ define([
       'code': 'ZILLOW/C4374_ZHVITT',
       'outlink' : 'https://www.quandl.com/data/ZILLOW/C4374_ZHVITT-Zillow-Home-Value-Index-City-Zillow-Home-Value-Index-Top-Tier-Pomfret-NY',
       'frequency': 'Monthly',
-      'refreshed': '2 months ago, on 19 Jun 2017'
+      'refreshed': '2 months ago'
     },{
       'name': 'Tokyo Stock Exchange',
       'description': "End of day unadjusted prices and additional information for companies trading on the Tokyo Stock Exchange in Japan.",
@@ -58,8 +58,81 @@ define([
       'code': 'TSE/1494',
       'outlink' : 'https://www.quandl.com/data/TSE/1494-One-Etf-High-Dividend-Japan-Equity-1494',
       'frequency': 'Daily',
-      'refreshed': '8 hours ago, on 18 Aug 2017'
+      'refreshed': '8 hours ago'
+    },{
+      'name': 'NASDAQ OMX Global Index Data',
+      'description': "Over 35,000 global indexes published by NASDAQ OMX including Global Equity, Fixed Income, Dividend, Green, Nordic, Sharia and more. Daily data.",
+      'img': 'https://quandl-data-upload.s3.amazonaws.com/uploads/source/profile_image/10471/thumb_thumb_nasdaqomx_fao.jpg',
+      'code': 'NASDAQOMX/LDRIG05',
+      'outlink' : 'https://www.quandl.com/data/NASDAQOMX/LDRIG05-LadderRite-0-5year-USD-Corporate-Bond-Index-LDRIG05',
+      'frequency': 'Daily',
+      'refreshed': '20 hours ago'
+    },{
+      'name': 'Intercontinental Exchange Futures Data',
+      'description': "Futures data for softs, grains, energy products and financial instruments, with historical contracts going back decades.",
+      'img': 'https://quandl-data-upload.s3.amazonaws.com/uploads/source/profile_image/6894/intercontinental-exchange-futures-data.png',
+      'code': 'ICE/WAN2019',
+      'outlink' : 'https://www.quandl.com/data/ICE/WAN2019-Milling-Wheat-Futures-July-2019-WAN2019',
+      'frequency': 'Daily',
+      'refreshed': '19 hours ago'
+    },{
+      'name': 'National Stock Exchange of India',
+      'description': "Stock and index data from the National Stock Exchange of India.",
+      'img': 'https://quandl-data-upload.s3.amazonaws.com/uploads/source/profile_image/33/nse.png',
+      'code': 'NSE/DOLLAR',
+      'outlink' : 'https://www.quandl.com/data/NSE/DOLLAR-Dollar-Industries-Limited',
+      'frequency': 'Daily',
+      'refreshed': '8 hours ago'
+    },{
+      'name': 'Yale Department of Economics',
+      'description': "Publishes data related to the stock and housing markets; price data for common indexes, interest rates, earnings, dividends, house prices, and CPI.",
+      'img': 'https://quandl-data-upload.s3.amazonaws.com/uploads/source/profile_image/175/images-1.jpg',
+      'code': 'YALE/RBCI',
+      'outlink' : 'https://www.quandl.com/data/YALE/RBCI-Historical-Housing-Market-Data-Real-Building-Cost-Index',
+      'frequency': 'Annual',
+      'refreshed': 'Last year'
+    },{
+      'name': ' London Bullion Market Association',
+      'description': "An international trade association in the London gold and silver market, consisting of central banks, private investors, producers, refiners, and other agents.",
+      'img': 'https://quandl-data-upload.s3.amazonaws.com/uploads/source/profile_image/139/Screen_Shot_2014-08-11_at_10.32.40_AM.png',
+      'code': 'LBMA/GOLD',
+      'outlink' : 'https://www.quandl.com/data/LBMA/GOLD-Gold-Price-London-Fixing',
+      'frequency': 'Daily',
+      'refreshed': '5 hours ago'
+    },{
+      'name': 'U.S. Energy Information Administration Data',
+      'description': "US national and state data on production, consumption and other indicators on all major energy products, such as electricity, coal, natural gas and petroleum.",
+      'img': 'https://quandl-data-upload.s3.amazonaws.com/uploads/source/profile_image/661/thumb_us-energy-information-administration-data.jpg',
+      'code': 'EIA/AEO_2016_REF_NO_CPP_PRCE_NA_COMM_NA_NG_NA_NENGL_Y13DLRPMCF_A',
+      'outlink' : 'https://www.quandl.com/data/EIA/AEO_2016_REF_NO_CPP_PRCE_NA_COMM_NA_NG_NA_NENGL_Y13DLRPMCF_A-Natural-Gas-Delivered-Commercial-New-England-No-CPP-AEO2016',
+      'frequency': 'Annual',
+      'refreshed': 'Last year'
+    },{
+      'name': 'LIFFE Futures Data',
+      'description': "Futures data from LIFFE for a variety of equities, softs and grains. Contains years of history for many futures.",
+      'img': 'https://quandl-data-upload.s3.amazonaws.com/uploads/source/profile_image/1304/thumb_nyse_liffe_logo.jpg',
+      'code': 'LIFFE/TK2019',
+      'outlink' : 'https://www.quandl.com/data/LIFFE/TK2019-UK-Feed-Wheat-Future-May-2019-TK2019',
+      'frequency': 'Daily',
+      'refreshed': '4 hours ago'
+    },{
+      'name': 'World Bank World Development Indicators',
+      'description': "Most current and accurate development indicators, compiled from officially-recognized international sources.",
+      'img': 'https://quandl-data-upload.s3.amazonaws.com/uploads/source/profile_image/13565/icon.jpg',
+      'code': 'WWDI/PYF_SL_UEM_1524_MA_ZS',
+      'outlink' : 'https://www.quandl.com/data/WWDI/PYF_SL_UEM_1524_MA_ZS-Unemployment-youth-male-of-male-labor-force-ages-15-24-French-Polynesia',
+      'frequency': 'Annual',
+      'refreshed': 'Last year'
+    },{
+      'name': 'British Petroleum',
+      'description': "BP is a large energy producer and distributor. It provides data on energy production and consumption in individual countries and larger subregions.",
+      'img': 'https://quandl-data-upload.s3.amazonaws.com/uploads/source/profile_image/154/bp.png',
+      'code': 'BP/COAL_PROD_O_MNG',
+      'outlink' : 'https://www.quandl.com/data/BP/COAL_PROD_O_MNG-Coal-Production-Oil-Equivalent-Mongolia',
+      'frequency': 'Annual',
+      'refreshed': 'Last year'
     }
+
 
   ];
   var build_side_panel = function(main_panel, side_panel) {
@@ -124,7 +197,7 @@ define([
     if (active_page == 1) {
       // src goes here
       var searchbar = $('<br><div class="input-group"><input type="text" placeholder="Search..." class="form-control" id="data_query"> \
-       <span class="input-group-btn"> <button class="btn btn-default" title="search" id="search-data"><i class="fa-search fa"></i></button>\
+       <span class="input-group-btn"> \
        <button class="btn btn-default" title="clear search and reload" id="clear-search"><i class="fa-repeat fa"></i></button> </span></div>');
       // populate all products
       var divholder = $('<div class="holder">');
@@ -202,7 +275,7 @@ define([
         var d = datasets[idx];
         var des = d.description.toLowerCase();
         var na = d.name.toLowerCase();
-        if (query == '' || des.indexOf(query) > 0 || na.indexOf(query) > 0) {
+        if (query == '' || des.indexOf(query) >= 0 || na.indexOf(query) >= 0) {
           $('.hit:eq('+ idx +')').removeClass('hide');
         } else {
           $('.hit:eq('+ idx +')').addClass('hide');
