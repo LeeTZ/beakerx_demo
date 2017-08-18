@@ -109,8 +109,8 @@ p.hit-description {
 
 .outlinkbtn {
   float: right;
-  margin: 5px 10px; 
-
+  margin: 0px 10px; 
+  background-color: #e25829;
 }
 
 .outlinkbtn a {

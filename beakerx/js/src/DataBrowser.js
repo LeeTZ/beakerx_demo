@@ -31,6 +31,8 @@ define([
   var active_page = 1;
   var active_product = 0;
   var dragging = '';
+  var query = '';
+  var quandlIcon = 'https://d3rlqa3rnk4r1f.cloudfront.net/assets/images/logos/v2/quandl-word-mark-fb41d14c7a394be8118897fb977de828.svg';
   var datasets = [
     {
       'name': 'BraveNewCoin Daily Global Price Index for Bitcoin',
@@ -141,17 +143,16 @@ define([
         divholder.append(hit);
       });
       side_panel_inner.append(searchbar)
-                      .append(divholder);  
+                      .append(divholder);
     } else if (active_page == 2) {
       var p = datasets[active_product];
       var pf = (function(){ return function(){ active_page = 1; redo_panel();} })();
       var buttonRow = $('<div class="row">');
       var goBack = $('<div class="go-back"> &lt; Go back</div>').click(pf);
-      var openOutside = $('<button class="btn outlinkbtn btn-primary"><a href="' + p.outlink + '" target="_blank"> \
+      var openOutside = $('<button class="btn outlinkbtn"><a href="' + p.outlink + '" target="_blank"> \
         <i class="fa fa-external-link"></i> Open in Quandl</a></button>');
-      buttonRow.append(goBack)
-               .append(openOutside);
-
+      buttonRow.append(goBack);
+      
       var divholder = $('<div class="row" style="background-color:#FFFFFF">');
       var divcolumn = $('<div class="des-column">');
       var code = 'quandl.get("' + p.code + '")';
@@ -168,6 +169,9 @@ define([
       hit.append(hitimage).append(hitcontent);
 
       divcolumn.append(hit)
+               .append($('<div><strong>PROVIDER</strong></div>'))
+               .append($('<p>').append($('<img src="' + quandlIcon + '">')).append(openOutside))
+               .append($('<hr>'))
                .append($('<div><strong>REFRESHED</strong></div>'))
                .append($('<p>').html(p.refreshed))
                .append($('<hr>'))
@@ -192,11 +196,27 @@ define([
 
   var button_bindings = function () {
     Jupyter.keyboard_manager.register_events($('.form-control'));
-    $('#search-data').click(function(){
-
-    });
+    var searchHits = function () {
+      query = $('#data_query').val().toLowerCase();
+      $.each(datasets, function(idx){
+        var d = datasets[idx];
+        var des = d.description.toLowerCase();
+        var na = d.name.toLowerCase();
+        if (query == '' || des.indexOf(query) > 0 || na.indexOf(query) > 0) {
+          $('.hit:eq('+ idx +')').removeClass('hide');
+        } else {
+          $('.hit:eq('+ idx +')').addClass('hide');
+        }
+      });
+    };
+    if (query) {
+      $('#data_query').val(query);
+      searchHits();
+    } 
+    $('#data_query').keyup(searchHits);
     $('#clear-search').click(function(){
       $('#data_query').val('');
+      searchHits();
     });
   }
   redo_panel = function() {
