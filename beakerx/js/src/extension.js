@@ -35,6 +35,7 @@ require('./../src/shared/style/beakerx.scss');
 require('./../src/plot/bko-combinedplot.css');
 require('./../src/plot/bko-plot.css');
 require('jquery-contextmenu/dist/jquery.contextMenu.min.css');
+require('./dataBrowser/dataBrowser.css');
 
 define([
   'services/config',
@@ -54,7 +55,8 @@ define([
   './plot/plotApi',
   './shared/bkCoreManager',
   'big.js',
-  './GistPublish.js'
+  './GistPublish.js',
+  './DataBrowser.js' 
 ], function(
   configmod,
   comm,
@@ -70,7 +72,8 @@ define([
   plotApi,
   bkCoreManager,
   big,
-  GistPublish
+  GistPublish,
+  DataBrowser
 ) {
   "use strict";
 
