@@ -21,6 +21,11 @@
     return;
   }
 
+  var pre_publish = function () {
+    $('#widget-submenu').children().first().click();
+    $('#save_checkpoint').click();
+    setTimeout(do_publish, 200);
+  }
   var do_publish = function() {
     var url = "https://api.github.com/gists";
     var filedata = {};
@@ -48,7 +53,7 @@
   Jupyter.toolbar.add_buttons_group([{
     'label'   : 'Publish as Gist',
     'icon'    : 'fa-share-alt',
-    'callback': do_publish
+    'callback': pre_publish
   }]);
 
   var publish_menu = $('<li>').attr('id', 'publish_gist')
