@@ -33,6 +33,7 @@ define([
   var dragging = '';
   var query = '';
   var quandlIcon = 'https://d3rlqa3rnk4r1f.cloudfront.net/assets/images/logos/v2/quandl-word-mark-fb41d14c7a394be8118897fb977de828.svg';
+  var enigmaIcon = 'https://assets.enigma.com/blocks/Meet-the-new-Public-3.svg?mtime=20170620130459';
   var datasets = [
     {
       'name': 'BraveNewCoin Daily Global Price Index for Bitcoin',
@@ -41,7 +42,8 @@ define([
       'code': 'BNC3/GWA_BTC',
       'outlink': 'https://www.quandl.com/data/BNC3/GWA_BTC-BraveNewCoin-Daily-Global-Price-Index-for-Bitcoin',
       'frequency': 'Monthly',
-      'refreshed': '2 months ago'
+      'refreshed': '2 months ago',
+      'provider': 'Quandl'
     },
     {
       'name': 'Zillow Real Estate Research',
@@ -50,7 +52,8 @@ define([
       'code': 'ZILLOW/C4374_ZHVITT',
       'outlink' : 'https://www.quandl.com/data/ZILLOW/C4374_ZHVITT-Zillow-Home-Value-Index-City-Zillow-Home-Value-Index-Top-Tier-Pomfret-NY',
       'frequency': 'Monthly',
-      'refreshed': '2 months ago'
+      'refreshed': '2 months ago',
+      'provider': 'Quandl'
     },{
       'name': 'Tokyo Stock Exchange',
       'description': "End of day unadjusted prices and additional information for companies trading on the Tokyo Stock Exchange in Japan.",
@@ -58,7 +61,8 @@ define([
       'code': 'TSE/1494',
       'outlink' : 'https://www.quandl.com/data/TSE/1494-One-Etf-High-Dividend-Japan-Equity-1494',
       'frequency': 'Daily',
-      'refreshed': '8 hours ago'
+      'refreshed': '8 hours ago',
+      'provider': 'Quandl'
     },{
       'name': 'NASDAQ OMX Global Index Data',
       'description': "Over 35,000 global indexes published by NASDAQ OMX including Global Equity, Fixed Income, Dividend, Green, Nordic, Sharia and more. Daily data.",
@@ -66,7 +70,8 @@ define([
       'code': 'NASDAQOMX/LDRIG05',
       'outlink' : 'https://www.quandl.com/data/NASDAQOMX/LDRIG05-LadderRite-0-5year-USD-Corporate-Bond-Index-LDRIG05',
       'frequency': 'Daily',
-      'refreshed': '20 hours ago'
+      'refreshed': '20 hours ago',
+      'provider': 'Quandl'
     },{
       'name': 'Intercontinental Exchange Futures Data',
       'description': "Futures data for softs, grains, energy products and financial instruments, with historical contracts going back decades.",
@@ -74,7 +79,18 @@ define([
       'code': 'ICE/WAN2019',
       'outlink' : 'https://www.quandl.com/data/ICE/WAN2019-Milling-Wheat-Futures-July-2019-WAN2019',
       'frequency': 'Daily',
-      'refreshed': '19 hours ago'
+      'refreshed': '19 hours ago',
+      'provider': 'Quandl'
+    },{
+      'name': 'Global Food Prices Database',
+      'description': "The Global Food Prices Database has data on food prices (e.g., beans, rice, fish, and sugar) for 76 countries and some 1,500 markets.",
+      'img': 'https://quandl-data-upload.s3.amazonaws.com/uploads/source/profile_image/13138/ueng.png',
+      'code': '',
+      'dataid': '8ed86473-7fb3-4e6c-8fac-60ae1f3358b5',
+      'outlink' : 'https://public.enigma.com/datasets/467d9a94-1842-41af-84f5-52b273b1ca02',
+      'frequency': 'Annual',
+      'refreshed': 'Last month',
+      'provider': 'Enigma'
     },{
       'name': 'National Stock Exchange of India',
       'description': "Stock and index data from the National Stock Exchange of India.",
@@ -82,7 +98,8 @@ define([
       'code': 'NSE/DOLLAR',
       'outlink' : 'https://www.quandl.com/data/NSE/DOLLAR-Dollar-Industries-Limited',
       'frequency': 'Daily',
-      'refreshed': '8 hours ago'
+      'refreshed': '8 hours ago',
+      'provider': 'Quandl'
     },{
       'name': 'Yale Department of Economics',
       'description': "Publishes data related to the stock and housing markets; price data for common indexes, interest rates, earnings, dividends, house prices, and CPI.",
@@ -90,7 +107,8 @@ define([
       'code': 'YALE/RBCI',
       'outlink' : 'https://www.quandl.com/data/YALE/RBCI-Historical-Housing-Market-Data-Real-Building-Cost-Index',
       'frequency': 'Annual',
-      'refreshed': 'Last year'
+      'refreshed': 'Last year',
+      'provider': 'Quandl'
     },{
       'name': ' London Bullion Market Association',
       'description': "An international trade association in the London gold and silver market, consisting of central banks, private investors, producers, refiners, and other agents.",
@@ -98,7 +116,8 @@ define([
       'code': 'LBMA/GOLD',
       'outlink' : 'https://www.quandl.com/data/LBMA/GOLD-Gold-Price-London-Fixing',
       'frequency': 'Daily',
-      'refreshed': '5 hours ago'
+      'refreshed': '5 hours ago',
+      'provider': 'Quandl'
     },{
       'name': 'U.S. Energy Information Administration Data',
       'description': "US national and state data on production, consumption and other indicators on all major energy products, such as electricity, coal, natural gas and petroleum.",
@@ -106,7 +125,8 @@ define([
       'code': 'EIA/AEO_2016_REF_NO_CPP_PRCE_NA_COMM_NA_NG_NA_NENGL_Y13DLRPMCF_A',
       'outlink' : 'https://www.quandl.com/data/EIA/AEO_2016_REF_NO_CPP_PRCE_NA_COMM_NA_NG_NA_NENGL_Y13DLRPMCF_A-Natural-Gas-Delivered-Commercial-New-England-No-CPP-AEO2016',
       'frequency': 'Annual',
-      'refreshed': 'Last year'
+      'refreshed': 'Last year',
+      'provider': 'Quandl'
     },{
       'name': 'LIFFE Futures Data',
       'description': "Futures data from LIFFE for a variety of equities, softs and grains. Contains years of history for many futures.",
@@ -114,7 +134,8 @@ define([
       'code': 'LIFFE/TK2019',
       'outlink' : 'https://www.quandl.com/data/LIFFE/TK2019-UK-Feed-Wheat-Future-May-2019-TK2019',
       'frequency': 'Daily',
-      'refreshed': '4 hours ago'
+      'refreshed': '4 hours ago',
+      'provider': 'Quandl'
     },{
       'name': 'World Bank World Development Indicators',
       'description': "Most current and accurate development indicators, compiled from officially-recognized international sources.",
@@ -122,7 +143,8 @@ define([
       'code': 'WWDI/PYF_SL_UEM_1524_MA_ZS',
       'outlink' : 'https://www.quandl.com/data/WWDI/PYF_SL_UEM_1524_MA_ZS-Unemployment-youth-male-of-male-labor-force-ages-15-24-French-Polynesia',
       'frequency': 'Annual',
-      'refreshed': 'Last year'
+      'refreshed': 'Last year',
+      'provider': 'Quandl'
     },{
       'name': 'British Petroleum',
       'description': "BP is a large energy producer and distributor. It provides data on energy production and consumption in individual countries and larger subregions.",
@@ -130,10 +152,9 @@ define([
       'code': 'BP/COAL_PROD_O_MNG',
       'outlink' : 'https://www.quandl.com/data/BP/COAL_PROD_O_MNG-Coal-Production-Oil-Equivalent-Mongolia',
       'frequency': 'Annual',
-      'refreshed': 'Last year'
+      'refreshed': 'Last year',
+      'provider': 'Quandl'
     }
-
-
   ];
   var build_side_panel = function(main_panel, side_panel) {
     side_panel.css('display', 'none');
@@ -222,13 +243,32 @@ define([
       var pf = (function(){ return function(){ active_page = 1; redo_panel();} })();
       var buttonRow = $('<div class="row">');
       var goBack = $('<div class="go-back"> &lt; Go back</div>').click(pf);
-      var openOutside = $('<button class="btn outlinkbtn"><a href="' + p.outlink + '" target="_blank"> \
-        <i class="fa fa-external-link"></i> Open in Quandl</a></button>');
+      var openOutside, providerLink;
+      if (p.provider == 'Quandl') {
+        openOutside = $('<button class="btn outlinkbtn"><a href="' + p.outlink + '" target="_blank"> \
+        <i class="fa fa-external-link"></i> Open in Quandl</a></button>');  
+        providerLink = $('<p>').append($('<img src="' + quandlIcon + '">')).append(openOutside);
+      } else {
+        openOutside = $('<button class="btn outlinkbtn" style="background-color:black"><a href="' + p.outlink + '" target="_blank"> \
+        <i class="fa fa-external-link"></i> Open in Enigma Public</a></button>');
+        providerLink = $('<p>').append($('<img src="' + enigmaIcon + '" style="width:140px">')).append(openOutside);
+      }
+      
       buttonRow.append(goBack);
       
       var divholder = $('<div class="row" style="background-color:#FFFFFF">');
       var divcolumn = $('<div class="des-column">');
-      var code = 'quandl.get("' + p.code + '")';
+      var code;
+      if (p.provider == 'Quandl'){
+        code = 'quandl.get("' + p.code + '")';
+      } else {
+        code = "import requests \n\
+url = 'https://public.enigma.com/api/snapshots/" + p.dataid + "?&row_limit=100'\n\
+response = requests.get(url)\n\
+data = response.json()\n\
+df = pd.DataFrame(data=data['table_rows']['rows'],columns=data['table_rows']['fields']) \n\
+df\n ";
+      }
       var pf = (function(c){ return function() {dragging = c}})(code);
       var codeblock = $('<pre>' + code  + '</pre>')
           .draggable({'helper':'clone', 'appendTo': 'body', 'start':pf})
@@ -243,7 +283,7 @@ define([
 
       divcolumn.append(hit)
                .append($('<div><strong>PROVIDER</strong></div>'))
-               .append($('<p>').append($('<img src="' + quandlIcon + '">')).append(openOutside))
+               .append(providerLink)
                .append($('<hr>'))
                .append($('<div><strong>REFRESHED</strong></div>'))
                .append($('<p>').html(p.refreshed))
