@@ -61,6 +61,12 @@ conda install -y -c conda-forge ipywidgets
 beakerx install
 ```
 
+In order to run demo files for data catalog you need the following libraries in your conda env:
+
+```
+pip install quandl matplotlib
+```
+
 ### Build and Install for Jupyter Lab
 
 ```

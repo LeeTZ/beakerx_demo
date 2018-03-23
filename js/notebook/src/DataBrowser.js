@@ -352,7 +352,7 @@ df\n ";
   };
   
   Jupyter.toolbar.add_buttons_group([{
-    'label'   : 'Open Data Browser',
+    'label'   : 'Data Browser',
     'icon'    : 'fa-database',
     'id'      : 'btn_datasets',
     'callback': function() {
