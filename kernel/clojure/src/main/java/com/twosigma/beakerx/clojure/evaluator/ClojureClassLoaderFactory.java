@@ -15,15 +15,14 @@
  */
 package com.twosigma.beakerx.clojure.evaluator;
 
-import com.twosigma.beakerx.jvm.classloader.DynamicClassLoaderSimple;
+import clojure.lang.DynamicClassLoader;
 import com.twosigma.beakerx.kernel.Classpath;
 
 class ClojureClassLoaderFactory {
 
-  static DynamicClassLoaderSimple newInstance(Classpath classPath, String outDir) {
-    DynamicClassLoaderSimple loader = new DynamicClassLoaderSimple(ClassLoader.getSystemClassLoader());
-    loader.addJars(classPath.getPathsAsStrings());
-    loader.addDynamicDir(outDir);
-    return loader;
+  static DynamicClassLoader newInstance(Classpath classPath, String outDir) {
+    DynamicClassLoader dynamicClassLoader = new DynamicClassLoader();
+    classPath.getPaths().forEach(path -> dynamicClassLoader.addURL(path.getUrl()));
+    return dynamicClassLoader;
   }
 }

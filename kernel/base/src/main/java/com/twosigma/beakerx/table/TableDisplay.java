@@ -36,9 +36,9 @@ import static com.twosigma.beakerx.table.TableDisplayToJson.serializeStringForma
 import static com.twosigma.beakerx.table.TableDisplayToJson.serializeStringFormatForType;
 import static com.twosigma.beakerx.table.TableDisplayToJson.serializeTimeZone;
 import static com.twosigma.beakerx.table.TableDisplayToJson.serializeTooltips;
+import static com.twosigma.beakerx.widget.CompiledCodeRunner.runCompiledCode;
 import static java.util.Arrays.asList;
 
-import com.twosigma.beakerx.NamespaceClient;
 import com.twosigma.beakerx.chart.Color;
 import com.twosigma.beakerx.jvm.serialization.BasicObjectSerializer;
 import com.twosigma.beakerx.jvm.serialization.BeakerObjectConverter;
@@ -48,8 +48,8 @@ import com.twosigma.beakerx.table.format.ValueStringFormat;
 import com.twosigma.beakerx.table.highlight.TableDisplayCellHighlighter;
 import com.twosigma.beakerx.table.highlight.ValueHighlighter;
 import com.twosigma.beakerx.table.renderer.TableDisplayCellRenderer;
-import com.twosigma.beakerx.widgets.BeakerxWidget;
-import com.twosigma.beakerx.widgets.RunWidgetClosure;
+import com.twosigma.beakerx.widget.BeakerxWidget;
+import com.twosigma.beakerx.widget.RunWidgetClosure;
 import com.twosigma.beakerx.handler.Handler;
 import com.twosigma.beakerx.message.Message;
 import com.twosigma.beakerx.mimetype.MIMEContainer;
@@ -60,14 +60,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class TableDisplay extends BeakerxWidget {
-
-  public static final String TAG = "tag";
 
   public static final String VIEW_NAME_VALUE = "TableDisplayView";
   public static final String MODEL_NAME_VALUE = "TableDisplayModel";
@@ -108,6 +107,7 @@ public class TableDisplay extends BeakerxWidget {
   private Map<String, Object> contextMenuListeners = new HashMap<>();
   private Map<String, String> contextMenuTags = new HashMap<>();
   private TableActionDetails details;
+  private TableDisplayActions displayActions = new TableDisplayActions(this);
 
   @Override
   public String getModelNameValue() {
@@ -129,7 +129,6 @@ public class TableDisplay extends BeakerxWidget {
     addToValues(v);
   }
 
-
   public TableDisplay(Collection<Map<String, Object>> v) {
     this(v, new BasicObjectSerializer());
   }
@@ -146,18 +145,59 @@ public class TableDisplay extends BeakerxWidget {
     subtype = LIST_OF_MAPS_SUBTYPE;
 
     // create columns
-    for (Map<String, Object> m : v) {
-      Set<?> w = m.entrySet();
-      for (Object s : w) {
-        Entry<?, ?> e = (Entry<?, ?>) s;
-        String c = e.getKey().toString();
-        if (!columns.contains(c)) {
-          columns.add(c);
-          String n = e.getValue() != null ? e.getValue().getClass().getName() : "string";
-          classes.add(serializer.convertType(n));
+    if (v.size() > 0) {
+      // Every column gets inspected at least once, so put every column in
+      // a list with null for the initial type
+      ArrayList<String> columnOrder = new ArrayList<String>();
+      ArrayList<String> columnsToCheck = new ArrayList<String>();
+      Map<String, String> typeTracker = new LinkedHashMap<String, String>();
+
+      Map<String, Object> firstRow = v.iterator().next();
+      for (String columnName : firstRow.keySet()) {
+        columnOrder.add(columnName);
+        columnsToCheck.add(columnName);
+        typeTracker.put(columnName, null);
+      }
+
+      // Visit each row and track the row's type. If some value is found to
+      // contain a string, the column is marked as string based and is no
+      // longer typechecked
+      List<String> columnsToRemove = new ArrayList<String>();
+      for (Map<String, Object> row : v) {
+        // Remove any columns requested from prior iteration
+        for (String columnToRemove : columnsToRemove) {
+          columnsToCheck.remove(columnToRemove);
+        }
+        columnsToRemove = new ArrayList<String>();
+
+        ListIterator<String> columnCheckIterator = columnsToCheck.listIterator();
+        while (columnCheckIterator.hasNext()) {
+          String columnToCheck = columnCheckIterator.next();
+          String currentType = typeTracker.get(columnToCheck);
+
+          if (currentType == null || !currentType.equals("string")) {
+            Object rowItem = row.get(columnToCheck);
+            if (rowItem != null) {
+              String colType = rowItem.getClass().getName();
+              String beakerColType = serializer.convertType(colType);
+              typeTracker.put(columnToCheck, beakerColType);
+
+              if (beakerColType.equals("string")) {
+                columnsToRemove.add(columnToCheck);
+              }
+            }
+          }
         }
       }
+
+      // Put results of type checking into `columns` and `classes`
+      for (String columnName : columnOrder) {
+        String columnType = typeTracker.get(columnName);
+        columns.add(columnName);
+        classes.add(columnType);
+      }
     }
+
     openComm();
     addToValues(buildValues(v, serializer));
   }
@@ -205,15 +245,16 @@ public class TableDisplay extends BeakerxWidget {
     return values;
   }
 
-  protected void openComm() {
-    super.openComm();
-    getComm().addMsgCallbackList((Handler<Message>) this::handleSetDetails);
-    getComm().addMsgCallbackList(this::handleOnContextMenu);
-    getComm().addMsgCallbackList((Handler<Message>) this::handleDoubleClick);
-  }
-
   public static TableDisplay createTableDisplayForMap(Map<?, ?> v) {
     return new TableDisplay(v);
+  }
+
+  @Override
+  protected void openComm() {
+    super.openComm();
+    getComm().addMsgCallbackList((Handler<Message>) message -> displayActions.handleSetDetails(message));
+    getComm().addMsgCallbackList((Handler<Message>) message -> displayActions.handleOnContextMenu(message));
+    getComm().addMsgCallbackList((Handler<Message>) message -> displayActions.handleDoubleClick(message));
   }
 
   public TimeUnit getStringFormatForTimes() {
@@ -631,69 +672,19 @@ public class TableDisplay extends BeakerxWidget {
     sendModelUpdate(serializeDoubleClickAction(this.doubleClickTag, hasDoubleClickAction()));
   }
 
-  private void handleDoubleClick(Message message) {
-    if (isCorrectEvent(message, CommActions.DOUBLE_CLICK)) {
-      handleCommEventSync(message, CommActions.DOUBLE_CLICK, this::onDoubleClickAction);
-    }
-  }
-
-  private boolean isCorrectEvent(Message message, CommActions commActions) {
-    LinkedHashMap<String, LinkedHashMap> data = (LinkedHashMap) message.getContent().get("data");
-    LinkedHashMap content = data.get("content");
-
-    if (null != content && !content.isEmpty()) {
-      String event = (String) content.getOrDefault("event", "");
-      return commActions.getAction().equals(event);
-    }
-
-    return false;
-
-  }
-
-  private void onDoubleClickAction(HashMap content, Message message) {
-    Object row = content.get("row");
-    Object column = content.get("column");
-    List<Object> params = new ArrayList<>();
-    params.add(row);
-    params.add(column);
-    fireDoubleClick(params, message);
-  }
-
   public void fireDoubleClick(List<Object> params, Message message) {
     if (this.doubleClickListener != null) {
       params.add(this);
-      handleCompiledCode(message, false, this::doubleClickHandler, params);
+      runCompiledCode(message, this::doubleClickHandler, params);
       sendModel();
     }
-  }
-
-  private void handleSetDetails(Message message) {
-    if (isCorrectEvent(message, CommActions.ACTIONDETAILS)) {
-      handleCommEventSync(message, CommActions.ACTIONDETAILS, this::onActionDetails);
-    }
-  }
-
-  private void handleOnContextMenu(Message message) {
-    if (isCorrectEvent(message, CommActions.CONTEXT_MENU_CLICK)) {
-      handleCommEventSync(message, CommActions.CONTEXT_MENU_CLICK, this::onContextMenu);
-    }
-  }
-
-  private void onContextMenu(HashMap content, Message message) {
-    String menuKey = (String) content.get("itemKey");
-    Object row = content.get("row");
-    Object column = content.get("column");
-    List<Object> params = new ArrayList<>();
-    params.add(row);
-    params.add(column);
-    fireContextMenuClick(menuKey, params, message);
   }
 
   public void fireContextMenuClick(String name, List<Object> params, Message message) {
     Object contextMenuListener = this.contextMenuListeners.get(name);
     if (contextMenuListener != null) {
       params.add(this);
-      handleCompiledCode(message, false, this::contextMenuClickHandlerCommon, contextMenuListener, params);
+      runCompiledCode(message, this::contextMenuClickHandlerCommon, contextMenuListener, params);
       sendModel();
     }
   }
@@ -710,51 +701,6 @@ public class TableDisplay extends BeakerxWidget {
     return MIMEContainer.HIDDEN;
   }
 
-
-  /**
-   * Also sends "runByTag" event.
-   *
-   * @param content
-   */
-  private void onActionDetails(HashMap content, Message message) {
-    TableActionDetails details = new TableActionDetails();
-
-    if (content.containsKey("params")) {
-
-      HashMap params = (HashMap) content.get("params");
-
-      if (params.containsKey("actionType")) {
-        CommActions value = CommActions.getByAction((String) params.get("actionType"));
-        details.setActionType(value);
-      }
-      if (params.containsKey("contextMenuItem")) {
-        String value = (String) params.get("contextMenuItem");
-        details.setContextMenuItem(value);
-      }
-      if (params.containsKey("row")) {
-        Integer value = (Integer) params.get("row");
-        details.setRow(value);
-      }
-      if (params.containsKey("col")) {
-        Integer value = (Integer) params.get("col");
-        details.setCol(value);
-      }
-      if (params.containsKey("tag")) {
-        String value = (String) params.get("tag");
-        details.setTag(value);
-      }
-    }
-    setDetails(details);
-    if (CommActions.CONTEXT_MENU_CLICK.equals(details.getActionType())) {
-      if (getContextMenuTags() != null && !getContextMenuTags().isEmpty() && details.getContextMenuItem() != null && !details.getContextMenuItem().isEmpty()) {
-        NamespaceClient.getBeaker().runByTag(getContextMenuTags().get(details.getContextMenuItem()));
-      }
-    } else if (CommActions.DOUBLE_CLICK.equals(details.getActionType())) {
-      if (getDoubleClickTag() != null && !getDoubleClickTag().isEmpty()) {
-        NamespaceClient.getBeaker().runByTag(getDoubleClickTag());
-      }
-    }
-  }
 
   public String getDoubleClickTag() {
     return doubleClickTag;
@@ -790,6 +736,10 @@ public class TableDisplay extends BeakerxWidget {
     this.details = details;
   }
 
+  public TableActionDetails getDetails() {
+    return details;
+  }
+
   protected Object runClosure(Object closure, Object... params) throws Exception {
     return RunWidgetClosure.runClosure(closure, params);
   }
@@ -806,5 +756,20 @@ public class TableDisplay extends BeakerxWidget {
 
   public interface Element {
     String get(int columnIndex, int rowIndex);
+  }
+
+  @SuppressWarnings("unchecked")
+  public void updateCell(int row, String columnName, Object value) {
+    int index = getColumnIndex(columnName);
+    List<Object> rowList = (List<Object>) values.get(row);
+    rowList.set(index, value);
+  }
+
+  private int getColumnIndex(String columnName) {
+    int index = columns.indexOf(columnName);
+    if (index < 0) {
+      throw new RuntimeException("There is no given column name: " + columnName);
+    }
+    return index;
   }
 }

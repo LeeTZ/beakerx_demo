@@ -15,18 +15,17 @@
  */
 package com.twosigma.beakerx.sql;
 
+import com.twosigma.beakerx.KernelSetUpFixtureTest;
 import com.twosigma.beakerx.KernelSocketsServiceTest;
 import com.twosigma.beakerx.KernelSocketsTest;
-import com.twosigma.beakerx.evaluator.TestBeakerCellExecutor;
-import com.twosigma.beakerx.kernel.commands.MagicCommand;
+import com.twosigma.beakerx.kernel.CloseKernelAction;
+import com.twosigma.beakerx.kernel.Kernel;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
+import com.twosigma.beakerx.kernel.KernelSocketsFactory;
 import com.twosigma.beakerx.kernel.msg.JupyterMessages;
-import com.twosigma.beakerx.kernel.KernelParameters;
-import com.twosigma.beakerx.kernel.KernelRunner;
 import com.twosigma.beakerx.message.Message;
-import com.twosigma.beakerx.sql.kernel.SQL;
 import com.twosigma.beakerx.sql.evaluator.SQLEvaluator;
-import org.junit.After;
-import org.junit.Before;
+import com.twosigma.beakerx.sql.kernel.SQL;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -34,31 +33,25 @@ import java.util.Map;
 import java.util.Optional;
 
 import static com.twosigma.MessageAssertions.verifyExecuteReplyMessage;
- import static com.twosigma.beakerx.MessageFactoryTest.getExecuteRequestMessage;
+import static com.twosigma.beakerx.MessageFactoryTest.getExecuteRequestMessage;
 import static com.twosigma.beakerx.evaluator.EvaluatorResultTestWatcher.waitForIdleMessage;
 import static com.twosigma.beakerx.evaluator.EvaluatorResultTestWatcher.waitForSentMessage;
+import static com.twosigma.beakerx.evaluator.EvaluatorTest.getCacheFolderFactory;
+import static com.twosigma.beakerx.evaluator.EvaluatorTest.getTestTempFolderFactory;
+import static com.twosigma.beakerx.evaluator.TestBeakerCellExecutor.cellExecutor;
 import static com.twosigma.beakerx.sql.SQLForColorTable.CREATE_AND_SELECT_ALL;
+import static com.twosigma.beakerx.sql.magic.command.DataSourcesMagicCommand.DATASOURCES;
+import static com.twosigma.beakerx.sql.magic.command.DefaultDataSourcesMagicCommand.DEFAULT_DATASOURCE;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class SQLKernelTest {
+public class SQLKernelTest extends KernelSetUpFixtureTest {
 
-  private SQL sqlKernel;
-  private KernelSocketsServiceTest kernelSocketsService;
-
-  @Before
-  public void setUp() throws Exception {
-    String sessionId = "sessionId2";
-    SQLEvaluator sqlEvaluator = new SQLEvaluator(sessionId, sessionId, TestBeakerCellExecutor.cellExecutor());
-    kernelSocketsService = new KernelSocketsServiceTest();
-    sqlKernel = new SQL(sessionId, sqlEvaluator, kernelSocketsService);
-    sqlKernel.setShellOptions(kernelParameters());
-    new Thread(() -> KernelRunner.run(() -> sqlKernel)).start();
-    kernelSocketsService.waitForSockets();
-  }
-
-  @After
-  public void tearDown() throws Exception {
-    kernelSocketsService.shutdown();
+  @Override
+  protected Kernel createKernel(String sessionId, KernelSocketsFactory kernelSocketsFactory, CloseKernelAction closeKernelAction) {
+    SQLEvaluator sqlEvaluator = new SQLEvaluator(sessionId, sessionId, cellExecutor(), getTestTempFolderFactory(), kernelParameters());
+    sqlEvaluator.setShellOptions(kernelParameters());
+    Kernel sqlKernel = new SQL(sessionId, sqlEvaluator, kernelSocketsFactory, closeKernelAction, getCacheFolderFactory());
+    return sqlKernel;
   }
 
   @Test
@@ -102,10 +95,10 @@ public class SQLKernelTest {
             findFirst();
   }
 
-  private KernelParameters kernelParameters() {
+  private static EvaluatorParameters kernelParameters() {
     Map<String, Object> params = new HashMap<>();
-    params.put(MagicCommand.DATASOURCES, "chemistry=jdbc:h2:mem:chemistry");
-    params.put(MagicCommand.DEFAULT_DATASOURCE, "jdbc:h2:mem:db1");
-    return new KernelParameters(params);
+    params.put(DATASOURCES, "chemistry=jdbc:h2:mem:chemistry");
+    params.put(DEFAULT_DATASOURCE, "jdbc:h2:mem:db1");
+    return new EvaluatorParameters(params);
   }
 }

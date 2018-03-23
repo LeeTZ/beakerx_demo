@@ -15,7 +15,6 @@
  */
 package com.twosigma.beakerx.jupyter.msg;
 
-import com.twosigma.ExecuteCodeCallbackTest;
 import com.twosigma.beakerx.KernelTest;
 import com.twosigma.beakerx.jvm.object.OutputCell;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
@@ -32,21 +31,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class MessageCreatorNoResultTest {
 
-  private MessageCreator messageCreator;
+  KernelTest kernel;
 
   @Before
   public void setUp() throws Exception {
-    messageCreator = new MessageCreator(new KernelTest("id1"));
+    kernel = new KernelTest("id1");
   }
 
   @Test
   public void noResult() throws Exception {
     //given
-    SimpleEvaluationObject seo = new SimpleEvaluationObject("code", new ExecuteCodeCallbackTest());
+    SimpleEvaluationObject seo = new SimpleEvaluationObject("code");
     seo.setJupyterMessage(new Message());
     seo.finished(OutputCell.HIDDEN);
     //when
-    List<MessageHolder> messages = messageCreator.createMessage(seo);
+    List<MessageHolder> messages = MessageCreator.createMessage(seo);
     //then
     messages.forEach(m -> assertThat(JupyterMessages.EXECUTE_RESULT).isNotEqualTo(m.getMessage().type()));
   }

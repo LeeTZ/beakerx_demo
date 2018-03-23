@@ -16,6 +16,7 @@
 package com.twosigma.beakerx.groovy.evaluator;
 
 import com.twosigma.beakerx.NamespaceClient;
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.evaluator.Evaluator;
 import com.twosigma.beakerx.evaluator.InternalVariable;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
@@ -28,43 +29,47 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
+import java.util.concurrent.Callable;
 
 import static com.twosigma.beakerx.evaluator.BaseEvaluator.INTERUPTED_MSG;
+import static com.twosigma.beakerx.groovy.evaluator.GroovyStackTracePrettyPrinter.printStacktrace;
 
-class GroovyCodeRunner implements Runnable {
+class GroovyCodeRunner implements Callable<TryResult> {
 
   private static final Logger logger = LoggerFactory.getLogger(GroovyCodeRunner.class.getName());
-  private GroovyWorkerThread groovyWorkerThread;
+  public static final String SCRIPT_NAME = "script";
+  private GroovyEvaluator groovyEvaluator;
   private final String theCode;
   private final SimpleEvaluationObject theOutput;
 
-  public GroovyCodeRunner(GroovyWorkerThread groovyWorkerThread, String code, SimpleEvaluationObject out) {
-    this.groovyWorkerThread = groovyWorkerThread;
+  public GroovyCodeRunner(GroovyEvaluator groovyEvaluator, String code, SimpleEvaluationObject out) {
+    this.groovyEvaluator = groovyEvaluator;
     theCode = code;
     theOutput = out;
   }
 
   @Override
-  public void run() {
-    Object result;
+  public TryResult call() throws Exception {
     ClassLoader oldld = Thread.currentThread().getContextClassLoader();
-    theOutput.setOutputHandler();
-
+    TryResult either;
+    String scriptName = SCRIPT_NAME;
     try {
+      Object result = null;
+      theOutput.setOutputHandler();
+      Thread.currentThread().setContextClassLoader(groovyEvaluator.getGroovyClassLoader());
 
-      Thread.currentThread().setContextClassLoader(groovyWorkerThread.getGroovyClassLoader());
-
-      Class<?> parsedClass = groovyWorkerThread.getGroovyClassLoader().parseClass(theCode);
+      scriptName += System.currentTimeMillis();
+      Class<?> parsedClass = groovyEvaluator.getGroovyClassLoader().parseClass(theCode, scriptName);
 
       Script instance = (Script) parsedClass.newInstance();
 
       if (GroovyEvaluator.LOCAL_DEV) {
-        groovyWorkerThread.getScriptBinding().setVariable(Evaluator.BEAKER_VARIABLE_NAME, new HashMap<String, Object>());
+        groovyEvaluator.getScriptBinding().setVariable(Evaluator.BEAKER_VARIABLE_NAME, new HashMap<String, Object>());
       } else {
-        groovyWorkerThread.getScriptBinding().setVariable(Evaluator.BEAKER_VARIABLE_NAME, NamespaceClient.getBeaker(groovyWorkerThread.groovyEvaluator.getSessionId()));
+        groovyEvaluator.getScriptBinding().setVariable(Evaluator.BEAKER_VARIABLE_NAME, NamespaceClient.getBeaker(groovyEvaluator.getSessionId()));
       }
 
-      instance.setBinding(groovyWorkerThread.getScriptBinding());
+      instance.setBinding(groovyEvaluator.getScriptBinding());
 
       InternalVariable.setValue(theOutput);
 
@@ -72,13 +77,10 @@ class GroovyCodeRunner implements Runnable {
 
       if (GroovyEvaluator.LOCAL_DEV) {
         logger.info("Result: {}", result);
-        logger.info("Variables: {}", groovyWorkerThread.getScriptBinding().getVariables());
+        logger.info("Variables: {}", groovyEvaluator.getScriptBinding().getVariables());
       }
-
-      theOutput.finished(result);
-
+      either = TryResult.createResult(result);
     } catch (Throwable e) {
-
       if (GroovyEvaluator.LOCAL_DEV) {
         logger.warn(e.getMessage());
         e.printStackTrace();
@@ -90,15 +92,20 @@ class GroovyCodeRunner implements Runnable {
       }
 
       if (e instanceof InterruptedException || e instanceof InvocationTargetException || e instanceof ThreadDeath) {
-        theOutput.error(INTERUPTED_MSG);
+        either = TryResult.createError(INTERUPTED_MSG);
       } else {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         StackTraceUtils.sanitize(e).printStackTrace(pw);
-        theOutput.error(sw.toString());
+        String value = sw.toString();
+        value = printStacktrace(scriptName, value);
+        either = TryResult.createError(value);
       }
+    } finally {
+      theOutput.clrOutputHandler();
+      Thread.currentThread().setContextClassLoader(oldld);
     }
-    theOutput.clrOutputHandler();
-    Thread.currentThread().setContextClassLoader(oldld);
+    return either;
   }
+
 }

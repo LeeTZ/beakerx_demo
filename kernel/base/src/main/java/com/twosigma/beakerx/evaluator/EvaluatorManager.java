@@ -15,15 +15,18 @@
  */
 package com.twosigma.beakerx.evaluator;
 
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.autocomplete.AutocompleteResult;
+import com.twosigma.beakerx.inspect.InspectResult;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
+import com.twosigma.beakerx.kernel.AddImportStatus;
 import com.twosigma.beakerx.kernel.Classpath;
 import com.twosigma.beakerx.kernel.ImportPath;
 import com.twosigma.beakerx.kernel.Imports;
 import com.twosigma.beakerx.kernel.KernelFunctionality;
-import com.twosigma.beakerx.kernel.KernelParameters;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
 import com.twosigma.beakerx.kernel.PathToJar;
-import com.twosigma.beakerx.message.Message;
+import com.twosigma.beakerx.kernel.Repos;
 
 import java.io.IOException;
 
@@ -45,12 +48,7 @@ public class EvaluatorManager {
     this.evaluator = evaluator;
   }
 
-
-  public void initKernel(KernelParameters kernelParameters) {
-    evaluator.initKernel(kernelParameters);
-  }
-
-  public synchronized void setShellOptions(final KernelParameters kernelParameters) {
+  public synchronized void setShellOptions(final EvaluatorParameters kernelParameters) {
     try {
       evaluator.setShellOptions(kernelParameters);
     } catch (IOException e) {
@@ -62,6 +60,10 @@ public class EvaluatorManager {
     return evaluator.autocomplete(code, caretPosition);
   }
 
+  public InspectResult inspect(String code, int caretPosition) {
+    return evaluator.inspect(code, caretPosition);
+  }
+
   public void cancelExecution() {
     evaluator.cancelExecution();
   }
@@ -70,34 +72,16 @@ public class EvaluatorManager {
     evaluator.killAllThreads();
   }
 
-  public synchronized SimpleEvaluationObject executeCode(String code, Message message,
-                                                         int executionCount, KernelFunctionality.ExecuteCodeCallback executeCodeCallback) {
-    return execute(code, message, executionCount, executeCodeCallback);
+  public synchronized TryResult executeCode(String code, SimpleEvaluationObject seo) {
+    return execute(code, seo);
   }
 
   public void exit() {
     evaluator.exit();
   }
 
-  private SimpleEvaluationObject execute(String code, Message message, int executionCount,
-                                         KernelFunctionality.ExecuteCodeCallback executeCodeCallback) {
-    SimpleEvaluationObject seo = createSimpleEvaluationObject(code, message, executionCount,
-            executeCodeCallback);
-    evaluator.evaluate(seo, code);
-    return seo;
-  }
-
-  private SimpleEvaluationObject createSimpleEvaluationObject(String code, Message message,
-                                                              int executionCount, KernelFunctionality.ExecuteCodeCallback executeCodeCallback) {
-    SimpleEvaluationObject seo = new SimpleEvaluationObject(code, executeCodeCallback);
-    seo.setJupyterMessage(message);
-    seo.setExecutionCount(executionCount);
-    seo.addObserver(kernel.getExecutionResultSender());
-    return seo;
-  }
-
-  public boolean addJarToClasspath(PathToJar path) {
-    return this.evaluator.addJarToClasspath(path);
+  private TryResult execute(String code, SimpleEvaluationObject seo) {
+    return evaluator.evaluate(seo, code);
   }
 
   public List<Path> addJarsToClasspath(List<PathToJar> paths) {
@@ -112,11 +96,19 @@ public class EvaluatorManager {
     return this.evaluator.getImports();
   }
 
-  public void addImport(ImportPath anImport) {
-    this.evaluator.addImport(anImport);
+  public AddImportStatus addImport(ImportPath anImport) {
+    return this.evaluator.addImport(anImport);
   }
 
   public void removeImport(ImportPath anImport) {
     this.evaluator.removeImport(anImport);
+  }
+
+  public Path getTempFolder() {
+    return evaluator.getTempFolder();
+  }
+
+  public Class<?> loadClass(String clazzName) throws ClassNotFoundException {
+    return evaluator.loadClass(clazzName);
   }
 }

@@ -23,23 +23,29 @@ import com.twosigma.beakerx.handler.KernelHandler;
 import com.twosigma.beakerx.javash.comm.JavaCommOpenHandler;
 import com.twosigma.beakerx.javash.evaluator.JavaEvaluator;
 import com.twosigma.beakerx.javash.handler.JavaKernelInfoHandler;
+import com.twosigma.beakerx.kernel.CacheFolderFactory;
+import com.twosigma.beakerx.kernel.CloseKernelAction;
 import com.twosigma.beakerx.kernel.Kernel;
 import com.twosigma.beakerx.kernel.KernelConfigurationFile;
-import com.twosigma.beakerx.kernel.KernelParameters;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
 import com.twosigma.beakerx.kernel.KernelRunner;
 import com.twosigma.beakerx.kernel.KernelSocketsFactory;
 import com.twosigma.beakerx.kernel.KernelSocketsFactoryImpl;
 import com.twosigma.beakerx.kernel.handler.CommOpenHandler;
 import com.twosigma.beakerx.message.Message;
+
 import java.io.IOException;
 import java.util.HashMap;
 
 
 public class Java extends Kernel {
 
-  public Java(final String id, final Evaluator evaluator,
-      KernelSocketsFactory kernelSocketsFactory) {
+  private Java(final String id, final Evaluator evaluator, KernelSocketsFactory kernelSocketsFactory) {
     super(id, evaluator, kernelSocketsFactory);
+  }
+
+  public Java(final String id, final Evaluator evaluator, KernelSocketsFactory kernelSocketsFactory, CloseKernelAction closeKernelAction, CacheFolderFactory cacheFolderFactory) {
+    super(id, evaluator, kernelSocketsFactory, closeKernelAction, cacheFolderFactory);
   }
 
   @Override
@@ -55,17 +61,16 @@ public class Java extends Kernel {
   public static void main(final String[] args) throws InterruptedException, IOException {
     KernelRunner.run(() -> {
       String id = uuid();
-      JavaEvaluator e = new JavaEvaluator(id, id);
+      JavaEvaluator e = new JavaEvaluator(id, id, getKernelParameters());
       KernelSocketsFactoryImpl kernelSocketsFactory = new KernelSocketsFactoryImpl(
-          new KernelConfigurationFile(args));
+              new KernelConfigurationFile(args));
       return new Java(id, e, kernelSocketsFactory);
     });
   }
 
-  @Override
-  public KernelParameters getKernelParameters() {
+  public static EvaluatorParameters getKernelParameters() {
     HashMap<String, Object> kernelParameters = new HashMap<>();
     kernelParameters.put(IMPORTS, new JavaDefaultVariables().getImports());
-    return new KernelParameters(kernelParameters);
+    return new EvaluatorParameters(kernelParameters);
   }
 }

@@ -15,78 +15,38 @@
  */
 package com.twosigma.beakerx.kotlin.kernel;
 
-import com.twosigma.beakerx.KernelSocketsServiceTest;
-import com.twosigma.beakerx.evaluator.TestBeakerCellExecutor;
-import com.twosigma.beakerx.kernel.KernelRunner;
-import com.twosigma.beakerx.kernel.comm.Comm;
+import com.twosigma.beakerx.KernelExecutionTest;
+import com.twosigma.beakerx.kernel.CloseKernelAction;
+import com.twosigma.beakerx.kernel.Kernel;
+import com.twosigma.beakerx.kernel.KernelSocketsFactory;
 import com.twosigma.beakerx.kotlin.evaluator.KotlinEvaluator;
-import com.twosigma.beakerx.message.Message;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
-import java.util.Map;
-import java.util.Optional;
+import static com.twosigma.beakerx.evaluator.EvaluatorTest.KERNEL_PARAMETERS;
+import static com.twosigma.beakerx.evaluator.EvaluatorTest.getCacheFolderFactory;
+import static com.twosigma.beakerx.evaluator.EvaluatorTest.getTestTempFolderFactory;
+import static com.twosigma.beakerx.evaluator.TestBeakerCellExecutor.cellExecutor;
 
-import static com.twosigma.MessageAssertions.verifyExecuteReplyMessage;
-import static com.twosigma.beakerx.MessageFactoryTest.getExecuteRequestMessage;
-import static com.twosigma.beakerx.evaluator.EvaluatorResultTestWatcher.waitForIdleMessage;
-import static com.twosigma.beakerx.evaluator.EvaluatorResultTestWatcher.waitForResult;
-import static com.twosigma.beakerx.evaluator.EvaluatorResultTestWatcher.waitForSentMessage;
-import static org.assertj.core.api.Assertions.assertThat;
+public class KotlinKernelTest extends KernelExecutionTest {
 
-public class KotlinKernelTest {
-
-  private Kotlin kernel;
-  private KernelSocketsServiceTest kernelSocketsService;
-
-  @Before
-  public void setUp() throws Exception {
-    String sessionId = "sessionId2";
-    KotlinEvaluator evaluator =
-        new KotlinEvaluator(sessionId, sessionId, TestBeakerCellExecutor.cellExecutor());
-    kernelSocketsService = new KernelSocketsServiceTest();
-    kernel = new Kotlin(sessionId, evaluator, kernelSocketsService);
-    new Thread(() -> KernelRunner.run(() -> kernel)).start();
-    kernelSocketsService.waitForSockets();
+  @Override
+  protected Kernel createKernel(String sessionId, KernelSocketsFactory kernelSocketsFactory, CloseKernelAction closeKernelAction) {
+    KotlinEvaluator evaluator = new KotlinEvaluator(sessionId, sessionId, cellExecutor(), getTestTempFolderFactory(), KERNEL_PARAMETERS);
+    return new Kotlin(sessionId, evaluator, kernelSocketsFactory, closeKernelAction, getCacheFolderFactory());
   }
 
-  @After
-  public void tearDown() throws Exception {
-    kernelSocketsService.shutdown();
+  @Override
+  protected String codeForVerifyingAddedDemoJar() {
+    return "import com.example.Demo\n" +
+            "Demo().getObjectTest()";
   }
 
-  @Test
-  public void evaluate() throws Exception {
-    //given
-    String code = "10/2";
-    Message message = getExecuteRequestMessage(code);
-    //when
-    kernelSocketsService.handleMsg(message);
-    //then
-    Optional<Message> idleMessage = waitForIdleMessage(kernelSocketsService.getKernelSockets());
-    assertThat(idleMessage).isPresent();
-    waitForResult(kernelSocketsService.getKernelSockets());
-    verifyPublishedMsgs(kernelSocketsService);
- //   verifyResult(kernelSocketsService.getExecuteResultMessage().get());
-    waitForSentMessage(kernelSocketsService.getKernelSockets());
-    verifySentMsgs(kernelSocketsService);
+  @Override
+  protected String getObjectTestMethodFromAddedDemoJar() {
+    return "Demo().getObjectTest()";
   }
 
-  private void verifyPublishedMsgs(KernelSocketsServiceTest service) {
-    assertThat(service.getBusyMessage()).isPresent();
-    assertThat(service.getExecuteInputMessage()).isPresent();
-    assertThat(service.getExecuteResultMessage()).isPresent();
-    assertThat(service.getIdleMessage()).isPresent();
-  }
-
-  private void verifySentMsgs(KernelSocketsServiceTest service) {
-    verifyExecuteReplyMessage(service.getReplyMessage());
-  }
-
-  private void verifyResult(Message result) {
-    Map actual = ((Map) result.getContent().get(Comm.DATA));
-    String value = (String) actual.get("text/plain");
-    assertThat(value).isEqualTo("5");
+  @Override
+  protected String unimportErrorMessage() {
+    return "unresolved reference";
   }
 }

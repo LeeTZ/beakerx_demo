@@ -13,6 +13,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+import groovy.time.TimeCategory
 
 task wrapper(type: Wrapper) {
   gradleVersion = '3.5'
@@ -50,16 +51,25 @@ subprojects {
       }
     }
   }
-  ext.pathToStaticContent = '../../beakerx/beakerx/static/kernel/'
+  ext.pathToStaticContent = '../../beakerx/beakerx/kernel/'
+
+  test {
+    testLogging {
+      afterSuite { desc, result ->
+        if (!desc.parent) {
+          println "Tests run: ${result.testCount}, Successes: ${result.successfulTestCount}, Failures: ${result.failedTestCount}, Skipped: ${result.skippedTestCount}, Total time: ${TimeCategory.minus(new Date(result.endTime), new Date(result.startTime))} "
+        }
+      }
+    }
+  }
 
   task staticContent {
-    ext.executeStaticContent = true
     doLast {
-      if (executeStaticContent) {
-        def kernelJson = file('kernel.json').text.replace('__MAIN_CLASS__', mainClassName)
-        file(pathToStaticContent + kernelIdName + "/kernel.json").withWriter { w ->
-          w << kernelJson
-        }
+      copy {
+        from '.'
+        into pathToStaticContent + kernelIdName
+        include '*.png'
+        include 'kernel.json'
       }
     }
   }
@@ -70,5 +80,22 @@ subprojects {
       delete pathToStaticContent + kernelIdName
     }
   }
+
+  task myJavadocs(type: Javadoc) {
+    source = sourceSets.main.allJava
+    classpath = configurations.compile
+    javadoc.destinationDir = file("$rootDir/../beakerx/beakerx/javadoc")
+    javadoc.include 'com/twosigma/beakerx/chart/**'
+    javadoc.include 'com/twosigma/beakerx/easyform/**'
+    javadoc.include 'com/twosigma/beakerx/table/**'
+    javadoc.include 'com/twosigma/beakerx/mimetype/**'
+    javadoc.include 'com/twosigma/beakerx/jvm/object/**'
+    javadoc.exclude '**/serializer/**'
+  }
+
+  afterEvaluate {
+    javadoc.classpath += files(project(':base').sourceSets.main.output)
+  }
+
   clean.dependsOn cleanStaticContent
 }

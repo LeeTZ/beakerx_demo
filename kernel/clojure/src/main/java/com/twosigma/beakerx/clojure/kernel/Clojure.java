@@ -20,18 +20,24 @@ import static com.twosigma.beakerx.kernel.Utils.uuid;
 import static java.util.Arrays.stream;
 
 import clojure.lang.LazySeq;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.twosigma.beakerx.DisplayerDataMapper;
 import com.twosigma.beakerx.clojure.evaluator.ClojureEvaluator;
 import com.twosigma.beakerx.clojure.handlers.ClojureCommOpenHandler;
 import com.twosigma.beakerx.clojure.handlers.ClojureKernelInfoHandler;
 import com.twosigma.beakerx.evaluator.Evaluator;
 import com.twosigma.beakerx.handler.KernelHandler;
+import com.twosigma.beakerx.kernel.CacheFolderFactory;
+import com.twosigma.beakerx.kernel.CloseKernelAction;
 import com.twosigma.beakerx.kernel.Kernel;
 import com.twosigma.beakerx.kernel.KernelConfigurationFile;
-import com.twosigma.beakerx.kernel.KernelParameters;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
 import com.twosigma.beakerx.kernel.KernelRunner;
 import com.twosigma.beakerx.kernel.KernelSocketsFactory;
 import com.twosigma.beakerx.kernel.KernelSocketsFactoryImpl;
 import com.twosigma.beakerx.kernel.handler.CommOpenHandler;
+import com.twosigma.beakerx.kernel.magic.command.MagicCommandTypesFactory;
+import com.twosigma.beakerx.kernel.magic.command.functionality.ClasspathAddMvnMagicCommand;
 import com.twosigma.beakerx.message.Message;
 import com.twosigma.beakerx.mimetype.MIMEContainer;
 import jupyter.Displayer;
@@ -39,6 +45,7 @@ import jupyter.Displayers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,8 +53,12 @@ import java.util.stream.Collectors;
 
 public class Clojure extends Kernel {
 
-  public Clojure(String sessionId, Evaluator evaluator, KernelSocketsFactory kernelSocketsFactory) {
+  private Clojure(String sessionId, Evaluator evaluator, KernelSocketsFactory kernelSocketsFactory) {
     super(sessionId, evaluator, kernelSocketsFactory);
+  }
+
+  public Clojure(String sessionId, Evaluator evaluator, KernelSocketsFactory kernelSocketsFactory, CloseKernelAction closeKernelAction, CacheFolderFactory cacheFolderFactory) {
+    super(sessionId, evaluator, kernelSocketsFactory, closeKernelAction, cacheFolderFactory);
   }
 
   @Override
@@ -65,8 +76,16 @@ public class Clojure extends Kernel {
       String id = uuid();
       KernelSocketsFactoryImpl kernelSocketsFactory = new KernelSocketsFactoryImpl(
               new KernelConfigurationFile(args));
-      return new Clojure(id, new ClojureEvaluator(id, id), kernelSocketsFactory);
+      ClojureEvaluator evaluator = new ClojureEvaluator(id, id, getKernelParameters());
+      return new Clojure(id, evaluator, kernelSocketsFactory);
     });
+  }
+
+  @Override
+  protected void configureMagicCommands() {
+    super.configureMagicCommands();
+    ClasspathAddMvnMagicCommand mvnMagicCommand = MagicCommandTypesFactory.getClasspathAddMvnMagicCommand(this);
+    mvnMagicCommand.addRepo("clojureRepo", "https://clojars.org/repo");
   }
 
   @Override
@@ -80,12 +99,22 @@ public class Clojure extends Kernel {
         }};
       }
     });
+    DisplayerDataMapper.register(converter);
   }
 
-  @Override
-  public KernelParameters getKernelParameters() {
+  private static ObjectMapper mapper = new ObjectMapper();
+
+  private static DisplayerDataMapper.Converter converter = data -> {
+    if (data instanceof Collection) {
+      String json = mapper.writeValueAsString(data);
+      return mapper.readValue(json, Object.class);
+    }
+    return data;
+  };
+
+  private static EvaluatorParameters getKernelParameters() {
     HashMap<String, Object> kernelParameters = new HashMap<>();
     kernelParameters.put(IMPORTS, new ClojureDefaultVariables().getImports());
-    return new KernelParameters(kernelParameters);
+    return new EvaluatorParameters(kernelParameters);
   }
 }

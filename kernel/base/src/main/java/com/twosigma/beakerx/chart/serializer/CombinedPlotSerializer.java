@@ -16,8 +16,10 @@
 
 package com.twosigma.beakerx.chart.serializer;
 
+import com.twosigma.beakerx.util.SerializerUtil;
 import com.twosigma.beakerx.chart.xychart.CombinedPlot;
 import com.twosigma.beakerx.chart.xychart.XYChart;
+import static com.twosigma.beakerx.chart.serializer.AbstractChartSerializer.AUTO_ZOOM;
 import java.io.IOException;
 import java.util.List;
 import com.fasterxml.jackson.databind.SerializerProvider;
@@ -38,7 +40,7 @@ public class CombinedPlotSerializer extends ObservableChartSerializer<CombinedPl
   {
     jgen.writeStartObject();
     super.serialize(plot, jgen);
-    jgen.writeObjectField("type", plot.getClass().getSimpleName());
+    jgen.writeObjectField("type", SerializerUtil.getTypeName(plot));
     jgen.writeObjectField("init_width", plot.getInitWidth());
     jgen.writeObjectField("init_height", plot.getInitHeight());
     jgen.writeObjectField("title", plot.getTitle());
@@ -58,6 +60,7 @@ public class CombinedPlotSerializer extends ObservableChartSerializer<CombinedPl
     jgen.writeObjectField("version", "groovy");
     jgen.writeObjectField("x_tickLabels_visible", plot.isxTickLabelsVisible());
     jgen.writeObjectField("y_tickLabels_visible", plot.isyTickLabelsVisible());
+    jgen.writeObjectField(AUTO_ZOOM, plot.getAutoZoom());
     jgen.writeEndObject();
   }
 

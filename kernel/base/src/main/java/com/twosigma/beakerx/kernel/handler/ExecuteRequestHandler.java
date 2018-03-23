@@ -16,20 +16,23 @@
 package com.twosigma.beakerx.kernel.handler;
 
 
-import com.twosigma.beakerx.kernel.commands.MagicCommand;
-import com.twosigma.beakerx.kernel.commands.MagicCommandResult;
+import com.twosigma.beakerx.handler.KernelHandler;
+import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.kernel.Code;
 import com.twosigma.beakerx.kernel.KernelFunctionality;
-import com.twosigma.beakerx.handler.KernelHandler;
+import com.twosigma.beakerx.kernel.magic.command.CodeFactory;
 import com.twosigma.beakerx.message.Header;
 import com.twosigma.beakerx.message.Message;
 
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+import static com.twosigma.beakerx.kernel.PlainCode.createSimpleEvaluationObject;
 import static com.twosigma.beakerx.kernel.msg.JupyterMessages.EXECUTE_INPUT;
+import static java.util.Collections.singletonList;
 
 /**
  * Does the actual work of executing user code.
@@ -38,102 +41,66 @@ import static com.twosigma.beakerx.kernel.msg.JupyterMessages.EXECUTE_INPUT;
  */
 public class ExecuteRequestHandler extends KernelHandler<Message> {
 
-  private MagicCommand magicCommand;
   private int executionCount;
-  private final Semaphore syncObject = new Semaphore(1, true);
+  private ExecutorService executorService = Executors.newFixedThreadPool(1);
 
   public ExecuteRequestHandler(KernelFunctionality kernel) {
     super(kernel);
     this.executionCount = 0;
-    magicCommand = new MagicCommand(kernel);
   }
 
   @Override
   public void handle(Message message) {
-    try {
-      handleMsg(message);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+    executorService.submit(() -> {
+      try {
+        handleMsg(message);
+      } catch (Exception e) {
+        handleException(message, e);
+      }
+    });
   }
 
-  private void handleMsg(Message message) throws InterruptedException {
-    syncObject.acquire();
+  private void handleMsg(Message message) {
     kernel.sendBusyMessage(message);
     executionCount += 1;
-    Code code = takeCodeFrom(message);
-    announceThatWeHaveTheCode(message, code);
-    if (code.isaMagicCommand()) {
-      handleMagicCommand(message, code);
-    } else {
-      runCode(code.asString(), message);
-    }
+    String codeString = takeCodeFrom(message);
+    announceTheCode(message, codeString);
+    Code code = CodeFactory.create(codeString, message, kernel);
+    code.execute(kernel, executionCount);
+    finishExecution(message);
   }
 
-  private void handleMagicCommand(Message message, Code code) {
-    MagicCommandResult magicCommandResult = magicCommand.process(code, message, executionCount);
-
-    magicCommandResult.getItems().forEach( item -> {
-      if(item.hasCodeToExecute()){
-        if(item.hasResult()){
-          kernel.publish(item.getResult().get());
-        }
-      } else if (item.hasResult()) {
-        sendMagicCommandReplyAndResult(message, item.getReply().get(), item.getResult().get());
-      } else {
-        sendMagicCommandReply(message, item.getReply().get());
-      }
-    } );
-
-    if (!magicCommandResult.getItems().isEmpty()) {
-      magicCommandResult.getItems().get(0).getCode().ifPresent(codeToExecute -> runCode(codeToExecute.asString(), message));
-    }
-
+  private void finishExecution(Message message) {
+    kernel.sendIdleMessage(message);
   }
 
-  private Code takeCodeFrom(Message message) {
+  private String takeCodeFrom(Message message) {
     String code = "";
     if (message.getContent() != null && message.getContent().containsKey("code")) {
       code = ((String) message.getContent().get("code")).trim();
     }
-    return new Code(code);
+    return code;
   }
 
-  private void sendMagicCommandReply(Message message, Message replyMessage) {
-    kernel.send(replyMessage);
-    kernel.sendIdleMessage(message);
-    syncObject.release();
-  }
-
-  private void sendMagicCommandReplyAndResult(Message message, Message replyMessage, Message resultMessage) {
-    kernel.publish(resultMessage);
-    sendMagicCommandReply(message, replyMessage);
-  }
-
-  private void runCode(String code, Message message) {
-    kernel.executeCode(code, message, executionCount, (seo) -> {
-      kernel.sendIdleMessage(seo.getJupyterMessage());
-      syncObject.release();
-    });
-  }
-
-  private void announceThatWeHaveTheCode(Message message, Code code) {
+  private void announceTheCode(Message message, String code) {
     Message reply = new Message();
     reply.setParentHeader(message.getHeader());
     reply.setIdentities(message.getIdentities());
     reply.setHeader(new Header(EXECUTE_INPUT, message.getHeader().getSession()));
     Map<String, Serializable> map1 = new HashMap<>(2);
     map1.put("execution_count", executionCount);
-    map1.put("code", code.asString());
+    map1.put("code", code);
     reply.setContent(map1);
-    kernel.publish(reply);
+    kernel.publish(singletonList(reply));
+  }
+
+  private void handleException(Message message, Exception e) {
+    SimpleEvaluationObject seo = createSimpleEvaluationObject(takeCodeFrom(message), kernel, message, executionCount);
+    seo.error(e);
   }
 
   @Override
   public void exit() {
   }
 
-  public MagicCommand getMagicCommand() {
-    return magicCommand;
-  }
 }

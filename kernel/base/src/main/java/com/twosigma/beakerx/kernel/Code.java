@@ -15,83 +15,50 @@
  */
 package com.twosigma.beakerx.kernel;
 
-import static java.lang.System.lineSeparator;
-import static java.util.Optional.empty;
-import static java.util.Optional.of;
-import static org.apache.commons.lang3.StringUtils.join;
+import com.twosigma.beakerx.kernel.magic.command.outcome.MagicCommandOutcomeItem;
+import com.twosigma.beakerx.message.Message;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.twosigma.beakerx.kernel.handler.MagicCommandExecutor.sendRepliesWithStatus;
 import static org.apache.commons.lang3.builder.EqualsBuilder.reflectionEquals;
 import static org.apache.commons.lang3.builder.HashCodeBuilder.reflectionHashCode;
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.Scanner;
-import java.util.regex.Pattern;
+import java.util.concurrent.CompletableFuture;
 
 public class Code {
 
-  public static final String MAGIC_COMMAND_PREFIX = "%";
+  private final String allCode;
+  private final List<MagicCommandOutcomeItem> errors;
+  private final Message message;
+  private List<CodeFrame> codeFrames;
 
-  private String code;
-  private List<String> commands = new ArrayList<>();
-  private String codeWithoutCommands = null;
+  private Code(String allCode, List<CodeFrame> codeFrames, List<MagicCommandOutcomeItem> errors, Message message) {
+    this.allCode = allCode;
+    this.codeFrames = checkNotNull(codeFrames);
+    this.errors = checkNotNull(errors);
+    this.message = message;
+  }
 
-  public Code(final String code) {
-    this.code = code;
-    if (isaMagicCommand()) {
-      setupCommandsAndCode();
-    } else {
-      this.codeWithoutCommands = this.code;
-    }
+  public static Code createCode(String allCode, List<CodeFrame> codeFrames, List<MagicCommandOutcomeItem> errors, Message message) {
+    return new Code(allCode, codeFrames, errors, message);
+  }
+
+  public List<CodeFrame> getCodeFrames() {
+    return codeFrames;
   }
 
   public String asString() {
-    return this.code;
+    return this.allCode;
   }
 
-  public boolean isaMagicCommand() {
-    return this.code.startsWith(MAGIC_COMMAND_PREFIX);
+  public boolean hasErrors() {
+    return !errors.isEmpty();
   }
 
-  public List<String> getCommands() {
-    if (!commands.isEmpty()) {
-      return commands;
-    }
-    throw new RuntimeException("The code does not have magic command.");
-  }
-
-  public Optional<CodeWithoutCommand> takeCodeWithoutCommand() {
-    if (this.codeWithoutCommands != null) {
-      return of(new CodeWithoutCommand(this.codeWithoutCommands));
-    }
-    return empty();
-  }
-
-  private void setupCommandsAndCode() {
-    Scanner scanner = new Scanner(this.code);
-    this.commands = commands(scanner);
-    String codeToExecute = join(restOfTheCode(scanner), lineSeparator());
-    if (!codeToExecute.isEmpty()) {
-      this.codeWithoutCommands = codeToExecute;
-    }
-  }
-
-  private List<String> restOfTheCode(Scanner scanner) {
-    List<String> codeWithoutCommands = new ArrayList<>();
-    while (scanner.hasNext()) {
-      codeWithoutCommands.add(scanner.nextLine());
-    }
-    return codeWithoutCommands;
-  }
-
-  private List<String> commands(Scanner scanner) {
-    List<String> result = new ArrayList<>();
-    Pattern p = Pattern.compile("^%.*", Pattern.MULTILINE);
-    while (scanner.hasNext(p)) {
-      result.add(scanner.nextLine());
-    }
-    return result;
+  public List<MagicCommandOutcomeItem> getErrors() {
+    return errors;
   }
 
   @Override
@@ -107,5 +74,26 @@ public class Code {
   @Override
   public String toString() {
     return reflectionToString(this);
+  }
+
+  public Message getMessage() {
+    return message;
+  }
+
+  public void execute(KernelFunctionality kernel, int executionCount) {
+    if (hasErrors()) {
+      sendRepliesWithStatus(getErrors(), kernel, getMessage(), executionCount);
+    } else {
+      takeCodeFramesWithoutLast().forEach(frame -> frame.executeFrame(this, kernel, message, executionCount));
+      takeLastCodeFrame().executeLastFrame(this, kernel, message, executionCount);
+    }
+  }
+
+  private CodeFrame takeLastCodeFrame() {
+    return getCodeFrames().get(getCodeFrames().size() - 1);
+  }
+
+  private List<CodeFrame> takeCodeFramesWithoutLast() {
+    return getCodeFrames().subList(0, getCodeFrames().size() - 1);
   }
 }

@@ -17,7 +17,7 @@ package com.twosigma.beakerx.easyform.formitem.widgets;
 
 import com.twosigma.beakerx.easyform.EasyFormComponent;
 import com.twosigma.beakerx.easyform.formitem.EasyFormListener;
-import com.twosigma.beakerx.widgets.Button;
+import com.twosigma.beakerx.widget.Button;
 import com.twosigma.beakerx.message.Message;
 
 import java.util.HashMap;
@@ -41,7 +41,7 @@ public class ButtonComponentWidget extends EasyFormComponent<Button> {
   }
 
   @Override
-  public void setValue(String value) {
+  public void setValue(Object value) {
   }
 
   public void setTag(String tag) {
@@ -52,7 +52,7 @@ public class ButtonComponentWidget extends EasyFormComponent<Button> {
     return this.widget.getTag();
   }
 
-  public void fireActionPerformed() {
+  private void fireActionPerformed() {
     if (actionPerformed != null) {
       actionPerformed.execute(getLabel());
       for (EasyFormListener listener : actionListeners) {

@@ -16,10 +16,10 @@
 package com.twosigma.beakerx.groovy.examples;
 
 import com.twosigma.beakerx.KernelSocketsServiceTest;
+import com.twosigma.beakerx.evaluator.BaseEvaluator;
 import com.twosigma.beakerx.groovy.TestGroovyEvaluator;
-import com.twosigma.beakerx.groovy.evaluator.GroovyEvaluator;
 import com.twosigma.beakerx.groovy.kernel.Groovy;
-import com.twosigma.beakerx.widgets.Widget;
+import com.twosigma.beakerx.widget.Widget;
 import com.twosigma.beakerx.kernel.KernelRunner;
 import com.twosigma.beakerx.message.Message;
 import org.junit.After;
@@ -29,26 +29,32 @@ import org.junit.BeforeClass;
 import java.io.Serializable;
 import java.util.Map;
 
+import static com.twosigma.beakerx.KernelCloseKernelAction.NO_ACTION;
+import static com.twosigma.beakerx.evaluator.EvaluatorTest.getCacheFolderFactory;
+import static com.twosigma.beakerx.widget.TestWidgetUtils.getState;
 import static org.junit.Assert.assertTrue;
 
 public abstract class GroovyExamplesSetupTest {
 
   protected static Groovy kernel;
   protected static KernelSocketsServiceTest kernelSocketsService;
+  private static Thread kernelThread;
 
   @BeforeClass
   public static void setUp() throws Exception {
     String sessionId = "sessionIdWidget";
-    GroovyEvaluator evaluator = TestGroovyEvaluator.groovyEvaluator();
+    BaseEvaluator evaluator = TestGroovyEvaluator.groovyEvaluator();
     kernelSocketsService = new KernelSocketsServiceTest();
-    kernel = new Groovy(sessionId, evaluator, kernelSocketsService);
-    new Thread(() -> KernelRunner.run(() -> kernel)).start();
+    kernel = new Groovy(sessionId, evaluator, kernelSocketsService, NO_ACTION, getCacheFolderFactory());
+    kernelThread = new Thread(() -> KernelRunner.run(() -> kernel));
+    kernelThread.start();
     kernelSocketsService.waitForSockets();
   }
 
   @AfterClass
   public static void tearDownClass() throws Exception {
     kernelSocketsService.shutdown();
+    kernelThread.join();
   }
 
   @After
@@ -66,7 +72,7 @@ public abstract class GroovyExamplesSetupTest {
 
   private boolean isWidget(Message message, String viewNameValue) {
     if (message.getContent() != null) {
-      Map<String, Serializable> data = (Map<String, Serializable>) message.getContent().get("data");
+      Map<String, Serializable> data = getState(message);
       if (data != null) {
         Serializable easyForm = data.get(Widget.VIEW_NAME);
         if (easyForm != null) {

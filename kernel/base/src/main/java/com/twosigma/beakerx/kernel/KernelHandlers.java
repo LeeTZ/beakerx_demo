@@ -15,13 +15,13 @@
  */
 package com.twosigma.beakerx.kernel;
 
+import com.twosigma.beakerx.handler.InspectHandler;
 import com.twosigma.beakerx.kernel.handler.CommCloseHandler;
 import com.twosigma.beakerx.kernel.handler.CommInfoHandler;
 import com.twosigma.beakerx.kernel.handler.CommMsgHandler;
 import com.twosigma.beakerx.kernel.handler.CommOpenHandler;
 import com.twosigma.beakerx.kernel.handler.ExecuteRequestHandler;
 import com.twosigma.beakerx.kernel.msg.JupyterMessages;
-import com.twosigma.beakerx.kernel.msg.MessageCreator;
 import com.twosigma.beakerx.handler.IsCompleteRequestHandler;
 import com.twosigma.beakerx.handler.KernelHandler;
 import com.twosigma.beakerx.handler.CompleteHandler;
@@ -54,10 +54,11 @@ public class KernelHandlers {
     }
     handlers.put(JupyterMessages.EXECUTE_REQUEST, new ExecuteRequestHandler(kernel));
     handlers.put(JupyterMessages.COMPLETE_REQUEST, new CompleteHandler(kernel));
+    handlers.put(JupyterMessages.INSPECT_REQUEST, new InspectHandler(kernel));
     handlers.put(JupyterMessages.HISTORY_REQUEST, new HistoryHandler(kernel));
     handlers.put(JupyterMessages.COMM_INFO_REQUEST, new CommInfoHandler(kernel));
     handlers.put(JupyterMessages.COMM_CLOSE, new CommCloseHandler(kernel));
-    handlers.put(JupyterMessages.COMM_MSG, new CommMsgHandler(kernel, new MessageCreator(kernel)));
+    handlers.put(JupyterMessages.COMM_MSG, new CommMsgHandler(kernel));
     handlers.put(JupyterMessages.IS_COMPLETE_REQUEST, new IsCompleteRequestHandler(kernel));
     return handlers;
   }

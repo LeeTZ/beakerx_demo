@@ -19,7 +19,6 @@ package com.twosigma.beakerx.jupyter.handler;
 import com.twosigma.beakerx.KernelTest;
 import com.twosigma.beakerx.kernel.comm.Comm;
 import com.twosigma.beakerx.kernel.msg.JupyterMessages;
-import com.twosigma.beakerx.kernel.msg.MessageCreator;
 import com.twosigma.beakerx.kernel.Code;
 import com.twosigma.beakerx.kernel.handler.CommCloseHandler;
 import com.twosigma.beakerx.kernel.handler.CommInfoHandler;
@@ -100,10 +99,10 @@ public class JupyterHandlerTest {
     return message;
   }
 
-  public static Message createExecuteRequestMessage(Code code) {
+  public static Message createExecuteRequestMessage(String code) {
     Message message = executeRequestMessage();
     Map<String, Serializable> content = new LinkedHashMap<>();
-    content.put("code", code.asString());
+    content.put("code", code);
     message.setContent(content);
     return message;
   }
@@ -138,7 +137,7 @@ public class JupyterHandlerTest {
     return message;
   }
 
-  private static Header initHeader(JupyterMessages jupyterMessages) {
+  public static Header initHeader(JupyterMessages jupyterMessages) {
     Header header = new Header();
     header.setId("messageId");
     header.setUsername("username");
@@ -177,7 +176,7 @@ public class JupyterHandlerTest {
     };
     commCloseHandler = new CommCloseHandler(kernel);
     commInfoHandler = new CommInfoHandler(kernel);
-    commMsgHandler = new CommMsgHandler(kernel, new MessageCreator(kernel));
+    commMsgHandler = new CommMsgHandler(kernel);
   }
 
   @After

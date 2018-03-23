@@ -14,15 +14,14 @@
 
 import json
 
-from datetime import datetime
-
+from pandas import DataFrame
 from beakerx.plot.legend import LegendPosition, LegendLayout
-from beakerx.plot.utils import BaseObject, getValue
+from beakerx.utils import *
 from beakerx.plot.plotitem import *
-
-from IPython.display import display
-from ipywidgets import DOMWidget, register
+from beakerx.plot.plotitem_treemap import *
+from enum import Enum
 from traitlets import Unicode, Dict
+from beakerx.beakerx_widgets import BeakerxDOMWidget
 
 
 class Chart(BaseObject):
@@ -37,6 +36,7 @@ class Chart(BaseObject):
                                         LegendPosition())
         self.legend_layout = getValue(kwargs, 'legendLayout',
                                       LegendLayout.VERTICAL)
+        self.type = "Plot"
 
 
 class AbstractChart(Chart):
@@ -60,6 +60,7 @@ class AbstractChart(Chart):
         self.omit_checkboxes = getValue(kwargs, 'omitCheckboxes', False)
         self.crosshair = getValue(kwargs, 'crosshair')
         self.timezone = getValue(kwargs, 'timeZone')
+        self.auto_zoom = getValue(kwargs, 'autoZoom')
 
 
 class XYChart(AbstractChart):
@@ -79,18 +80,111 @@ class XYChart(AbstractChart):
     def add(self, item):
         if isinstance(item, YAxis):
             self.rangeAxes.append(item)
-        elif isinstance(item, XYGraphics):
-            self.graphics_list.append(item)
         elif isinstance(item, Text):
             self.texts.append(item)
         elif isinstance(item, ConstantLine):
             self.constant_lines.append(item)
         elif isinstance(item, ConstantBand):
             self.constant_bands.append(item)
+        elif isinstance(item, Graphics):
+            self.graphics_list.append(item)
         elif isinstance(item, list):
             for elem in item:
                 self.add(elem)
         return self
+
+    def setYBound(self, lower, upper):
+        self.y_lower_bound = lower
+        self.y_upper_bound = upper
+        self.rangeAxes[0].setBound(lower, upper)
+        return self
+
+    def setXBound(self, lower, upper):
+        self.x_auto_range = False
+        self.x_lower_bound = lower
+        self.x_upper_bound = upper
+        return self
+
+
+class HistogramChart(XYChart):
+    def __init__(self, **kwargs):
+        self.log = getValue(kwargs, 'log', False)
+        if self.log:
+            kwargs['logY'] = True
+        
+        super(HistogramChart, self).__init__(**kwargs)
+        self.type = 'Histogram'
+        self.bin_count = getValue(kwargs, 'binCount')
+        self.cumulative = getValue(kwargs, 'cumulative', False)
+        self.normed = getValue(kwargs, 'normed', False)
+        
+        self.range_min = getValue(kwargs, 'rangeMin')
+        self.range_max = getValue(kwargs, 'rangeMax')
+        self.names = getValue(kwargs, 'names')
+        self.displayMode = getValue(kwargs, 'displayMode')
+        
+        color = getValue(kwargs, 'color')
+        if color is not None:
+            if isinstance(color, Color):
+                self.colors = []
+                self.colors.append(color)
+            else:
+                self.colors = color
+
+
+class CategoryChart(XYChart):
+    def __init__(self, **kwargs):
+        super(CategoryChart, self).__init__(**kwargs)
+        self.type = 'CategoryPlot'
+        self.categoryNamesLabelAngle = getValue(kwargs,
+                                                'categoryNamesLabelAngle', 0.0)
+        self.categoryNames = getValue(kwargs, 'categoryNames', [])
+        self.y_upper_margin = getValue(kwargs, 'upperMargin', 0.0)
+        self.y_lower_bound = getValue(kwargs, 'lowerMargin', 0.0)
+        self.x_upper_margin = getValue(kwargs, 'upperMargin', 0.05)
+        self.x_lower_margin = getValue(kwargs, 'lowerMargin', 0.05)
+        self.category_margin = getValue(kwargs, 'categoryMargin', 0.2)
+        self.y_auto_range_includes_zero = getValue(kwargs,
+                                                   'y_auto_range_includes_zero',
+                                                   False)
+        self.y_auto_range = getValue(kwargs, 'y_auto_range', True)
+        self.orientation = getValue(kwargs, 'orientation')
+
+
+class TreeMapChart(XYChart):
+    def __init__(self, **kwargs):
+        super(TreeMapChart, self).__init__(**kwargs)
+        self.type = 'TreeMap'
+        self.showLegend = getValue(kwargs, 'showLegend', True)
+        self.title = getValue(kwargs, 'title', "")
+        self.colorProvider = getValue(kwargs, 'colorProvider',
+                                      RandomColorProvider())
+        self.toolTipBuilder = getValue(kwargs, 'toolTipBuilder')
+        self.mode = getValue(kwargs, 'mode', Mode.SQUARIFY).value
+        self.ratio = getValue(kwargs, 'ratio')
+        self.valueAccessor = getValue(kwargs, 'valueAccessor',
+                                      ValueAccessor.VALUE)
+        self.custom_styles = []
+        self.element_styles = {}
+        self.graphics_list = getValue(kwargs, 'root')
+    
+    def transform(self):
+        
+        self.process(self.graphics_list)
+        return super(TreeMapChart, self).transform()
+    
+    def process(self, node):
+        children = node.children
+        
+        if children is not None:
+            for child in children:
+                self.process(child)
+        
+        if node.isLeaf():
+            node.color = self.colorProvider.getColor(node)
+            toolTipBuilder = self.toolTipBuilder
+            if toolTipBuilder is not None:
+                node.tooltip = toolTipBuilder.getToolTip(node)
 
 
 class CombinedChart(BaseObject):
@@ -102,6 +196,7 @@ class CombinedChart(BaseObject):
         self.x_label = getValue(kwargs, 'xLabel', 'Linear')
         self.plots = getValue(kwargs, 'plots', [])
         self.weights = getValue(kwargs, 'weights', [])
+        self.auto_zoom = getValue(kwargs, 'autoZoom')
         self.version = 'groovy'
         self.type = 'CombinedPlot'
         self.y_tickLabels_visible = True
@@ -109,7 +204,7 @@ class CombinedChart(BaseObject):
         self.plot_type = 'Plot'
 
 
-class Plot(DOMWidget):
+class Plot(BeakerxDOMWidget):
     _view_name = Unicode('PlotView').tag(sync=True)
     _model_name = Unicode('PlotModel').tag(sync=True)
     _view_module = Unicode('beakerx').tag(sync=True)
@@ -120,7 +215,7 @@ class Plot(DOMWidget):
         super(Plot, self).__init__(**kwargs)
         self.chart = XYChart(**kwargs)
         self.model = self.chart.transform()
-    
+
     def add(self, item):
         self.chart.add(item)
         self.model = self.chart.transform()
@@ -128,6 +223,139 @@ class Plot(DOMWidget):
     
     def getYAxes(self):
         return self.chart.rangeAxes
+
+    def setShowLegend(self, show):
+        self.chart.show_legend = show
+        self.model = self.chart.transform()
+        return self
+
+    def setXBound(self, *args):
+        if len(args) == 1 and isinstance(args[0], list):
+            arg_list = args[0]
+            if len(arg_list) == 2:
+                self.chart.setXBound(arg_list[0], arg_list[1])
+            else:
+                raise ValueError('to set the x bound, the list needs to be of size=2.')
+        else:
+            self.chart.setXBound(args[0], args[1])
+        self.model = self.chart.transform()
+        return self
+
+    def setYBound(self, *args):
+        if len(args) == 1 and isinstance(args[0], list):
+            arg_list = args[0]
+            if len(arg_list) == 2:
+                self.chart.setYBound(arg_list[0], arg_list[1])
+            else:
+                raise ValueError('to set the y bound, the list needs to be of size=2.')
+        else:
+            self.chart.setYBound(args[0], args[1])
+        self.model = self.chart.transform()
+        return self
+
+    def _ipython_display_(self, **kwargs):
+        self.model = self.chart.transform()
+        super(Plot, self)._ipython_display_(**kwargs)
+
+
+class CategoryPlot(BeakerxDOMWidget):
+    _view_name = Unicode('PlotView').tag(sync=True)
+    _model_name = Unicode('PlotModel').tag(sync=True)
+    _view_module = Unicode('beakerx').tag(sync=True)
+    _model_module = Unicode('beakerx').tag(sync=True)
+    model = Dict().tag(sync=True)
+    
+    def __init__(self, **kwargs):
+        super(CategoryPlot, self).__init__(**kwargs)
+        self.chart = CategoryChart(**kwargs)
+        self.model = self.chart.transform()
+
+    def add(self, item):
+        self.chart.add(item)
+        self.model = self.chart.transform()
+        return self
+
+    def _ipython_display_(self, **kwargs):
+        self.model = self.chart.transform()
+        super(CategoryPlot, self)._ipython_display_(**kwargs)
+
+class HeatMap(BeakerxDOMWidget):
+    _view_name = Unicode('PlotView').tag(sync=True)
+    _model_name = Unicode('PlotModel').tag(sync=True)
+    _view_module = Unicode('beakerx').tag(sync=True)
+    _model_module = Unicode('beakerx').tag(sync=True)
+    model = Dict().tag(sync=True)
+    
+    def __init__(self, **kwargs):
+        super(HeatMap, self).__init__(**kwargs)
+        if 'data' in kwargs:
+            kwargs['graphics'] = kwargs['data']
+        if not 'xLowerMargin' in kwargs:
+            kwargs['xLowerMargin'] = 0.0
+        if not 'yLowerMargin' in kwargs:
+            kwargs['yLowerMargin'] = 0.0
+        if not 'yUpperMargin' in kwargs:
+            kwargs['yUpperMargin'] = 0.0
+        if not 'xUpperMargin' in kwargs:
+            kwargs['xUpperMargin'] = 0.0
+        if not 'legendLayout' in kwargs:
+            kwargs['legendLayout'] = LegendLayout.HORIZONTAL
+        if not 'legendPosition' in kwargs:
+            kwargs['legendPosition'] = LegendPosition(
+                    position=LegendPosition.Position.BOTTOM_RIGHT)
+        self.chart = XYChart(**kwargs)
+        color = getValue(kwargs, 'color',
+                         ["#FF780004", "#FFF15806", "#FFFFCE1F"])
+        
+        if isinstance(color, GradientColor):
+            self.chart.color = color.color
+        else:
+            self.chart.color = color
+        
+        self.chart.type = 'HeatMap'
+
+        self.model = self.chart.transform()
+
+
+class Histogram(BeakerxDOMWidget):
+    class DisplayMode(Enum):
+        OVERLAP = 1
+        STACK = 2
+        SIDE_BY_SIDE = 3
+    
+    _view_name = Unicode('PlotView').tag(sync=True)
+    _model_name = Unicode('PlotModel').tag(sync=True)
+    _view_module = Unicode('beakerx').tag(sync=True)
+    _model_module = Unicode('beakerx').tag(sync=True)
+    model = Dict().tag(sync=True)
+    
+    def __init__(self, **kwargs):
+        super(Histogram, self).__init__()
+        self.chart = HistogramChart(**kwargs)
+        data = getValue(kwargs, 'data', [])
+        if len(data) > 1 and isinstance(data[0], list):
+            for x in data:
+                self.chart.graphics_list.append(x)
+        else:
+            self.chart.graphics_list.append(data)
+        self.model = self.chart.transform()
+
+
+class TreeMap(BeakerxDOMWidget):
+    _view_name = Unicode('PlotView').tag(sync=True)
+    _model_name = Unicode('PlotModel').tag(sync=True)
+    _view_module = Unicode('beakerx').tag(sync=True)
+    _model_module = Unicode('beakerx').tag(sync=True)
+    model = Dict().tag(sync=True)
+    
+    def __init__(self, **kwargs):
+        super(TreeMap, self).__init__()
+        self.chart = TreeMapChart(**kwargs)
+        self.model = self.chart.transform()
+
+    def setColorProvider(self, provider):
+        self.chart.colorProvider = provider
+        self.model = self.chart.transform()
 
 
 class TimePlot(Plot):
@@ -175,12 +403,10 @@ class SimpleTimePlot(TimePlot):
         self.chart.type = 'TimePlot'
         self.use_tool_tip = True
         self.show_legend = True
-        self.domain_axis_label = 'Time'
-        
+        time_column_default = 'time'
         displayNames = getValue(kwargs, 'displayNames')
         displayLines = getValue(kwargs, 'displayLines', True)
         displayPoints = getValue(kwargs, 'displayPoints', False)
-        timeColumn = getValue(kwargs, 'timeColumn', 'time')
         colors = getValue(kwargs, 'colors')
         
         if len(args) > 0:
@@ -196,14 +422,26 @@ class SimpleTimePlot(TimePlot):
         xs = []
         yss = []
         dataColumnsNames = []
+        parse_x = True
+
+        if isinstance(tableData, DataFrame):
+            if tableData.index.name is not None:
+                time_column_default = tableData.index.name
+            if not isinstance(tableData.index, pd.RangeIndex):
+                parse_x = False
+                xs = tableData.index.get_values()
+            tableData = tableData.to_dict(orient='rows')
         
+        timeColumn = getValue(kwargs, 'timeColumn', time_column_default)
+        self.chart.domain_axis_label = getValue(kwargs, 'xLabel', timeColumn)
         if tableData is not None and columnNames is not None:
             dataColumnsNames.extend(list(tableData[0]))
-            
+
             for row in tableData:
-                x = row[timeColumn]
-                x = date_time_2_millis(x)
-                xs.append(x)
+                if parse_x:
+                    x = row[timeColumn]
+                    x = date_time_2_millis(x)
+                    xs.append(x)
                 
                 for idx in range(len(columnNames)):
                     column = columnNames[idx]
@@ -243,7 +481,7 @@ class SimpleTimePlot(TimePlot):
                     self.add(points)
 
 
-class CombinedPlot(DOMWidget):
+class CombinedPlot(BeakerxDOMWidget):
     _view_name = Unicode('PlotView').tag(sync=True)
     _model_name = Unicode('PlotModel').tag(sync=True)
     _view_module = Unicode('beakerx').tag(sync=True)
@@ -254,7 +492,7 @@ class CombinedPlot(DOMWidget):
         super(CombinedPlot, self).__init__(**kwargs)
         self.chart = CombinedChart(**kwargs)
         self.model = self.chart.transform()
-    
+
     def add(self, item, weight):
         if isinstance(item.chart, XYChart):
             self.chart.plots.append(item.chart)

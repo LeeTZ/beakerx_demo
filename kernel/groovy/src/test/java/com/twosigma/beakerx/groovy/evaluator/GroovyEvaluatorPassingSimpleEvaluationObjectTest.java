@@ -15,23 +15,29 @@
  */
 package com.twosigma.beakerx.groovy.evaluator;
 
-import com.twosigma.ExecuteCodeCallbackTest;
+import com.twosigma.beakerx.TryResult;
+import com.twosigma.beakerx.evaluator.BaseEvaluator;
 import com.twosigma.beakerx.groovy.TestGroovyEvaluator;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import com.twosigma.beakerx.message.Message;
 
-import static com.twosigma.beakerx.evaluator.EvaluatorResultTestWatcher.waitForResult;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class GroovyEvaluatorPassingSimpleEvaluationObjectTest {
 
-  private GroovyEvaluator groovyEvaluator;
+  private BaseEvaluator groovyEvaluator;
 
   @Before
   public void setUp() throws Exception {
     groovyEvaluator = TestGroovyEvaluator.groovyEvaluator();
+  }
+
+  @After
+  public void tearDown() throws Exception {
+    groovyEvaluator.exit();
   }
 
   @Test
@@ -40,13 +46,12 @@ public class GroovyEvaluatorPassingSimpleEvaluationObjectTest {
     String code = "" +
             "import com.twosigma.beakerx.evaluator.InternalVariable\n" +
             "InternalVariable.getParentHeader()";
-    SimpleEvaluationObject seo = new SimpleEvaluationObject(code, new ExecuteCodeCallbackTest());
+    SimpleEvaluationObject seo = new SimpleEvaluationObject(code);
     Message message = new Message();
     seo.setJupyterMessage(message);
     //when
-    groovyEvaluator.evaluate(seo, code);
-    waitForResult(seo);
+    TryResult evaluate = groovyEvaluator.evaluate(seo, code);
     //then
-    assertThat(seo.getPayload()).isEqualTo(message);
+    assertThat(evaluate.result()).isEqualTo(message);
   }
 }

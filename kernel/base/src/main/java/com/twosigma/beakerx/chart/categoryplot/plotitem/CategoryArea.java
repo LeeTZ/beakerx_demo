@@ -21,12 +21,10 @@ import com.twosigma.beakerx.chart.Color;
 import com.twosigma.beakerx.chart.xychart.plotitem.LabelPositionType;
 import java.util.List;
 
-public class CategoryArea extends CategoryGraphics {
+public class CategoryArea extends BasedCategoryGraphics {
 
   private Number baseWidth;
   private List<Number> widths;
-  private Number baseBase = 0.0d;
-  private List<Number> bases;
   private Color baseOutlineColor;
   private List<Object> outlineColors;
   private Boolean baseFill;
@@ -36,43 +34,12 @@ public class CategoryArea extends CategoryGraphics {
 
   private LabelPositionType labelPosition = LabelPositionType.CENTER;
 
-  public void setBase(Object base) {
-    if (base instanceof Number) {
-      this.baseBase = ((Number) base).floatValue();
-    } else if (base instanceof List) {
-      @SuppressWarnings("unchecked")
-      List<Number> ss = (List<Number>) base;
-      setBases(ss);
-    } else {
-      throw new IllegalArgumentException(
-          "setBase takes Number or List of Number");
-    }
+  public void setWidth(Number width) {
+    this.baseWidth = width.floatValue();
   }
 
-  private void setBases(List<Number> bases) {
-    this.bases = bases;
-  }
-
-  public Number getBase() {
-    return this.baseBase;
-  }
-
-  public List<Number> getBases() {
-    return this.bases;
-  }
-
-
-  public void setWidth(Object width) {
-    if (width instanceof Number) {
-      this.baseWidth = ((Number) width).floatValue();
-    } else if (width instanceof List) {
-      @SuppressWarnings("unchecked")
-      List<Number> ws = (List<Number>) width;
-      setWidths(ws);
-    } else {
-      throw new IllegalArgumentException(
-          "setWidth takes Number or List of Number");
-    }
+  public void setWidth(List<Number> width) {
+    setWidths(width);
   }
 
   private void setWidths(List<Number> widths) {
@@ -87,20 +54,16 @@ public class CategoryArea extends CategoryGraphics {
     return this.widths;
   }
 
+  public void setOutlineColor(Color color) {
+    this.baseOutlineColor = color;
+  }
 
-  public void setOutlineColor(Object color) {
-    if (color instanceof Color) {
-      this.baseOutlineColor = (Color) color;
-    } else if (color instanceof java.awt.Color) {
-      this.baseOutlineColor = new Color((java.awt.Color) color);
-    } else if (color instanceof List) {
-      @SuppressWarnings("unchecked")
-      List<Object> cs = (List<Object>) color;
-      setOutlineColors(cs);
-    } else {
-      throw new IllegalArgumentException(
-          "setOutlineColor takes Color or List of Color");
-    }
+  public void setOutlineColor(java.awt.Color color) {
+    this.baseOutlineColor = new Color(color);
+  }
+
+  public void setOutlineColor(List<Object> colors) {
+    setOutlineColors(colors);
   }
 
   private void setOutlineColors(List<Object> colors) {
@@ -120,17 +83,12 @@ public class CategoryArea extends CategoryGraphics {
     return this.outlineColors;
   }
 
-  public void setFill(Object fill) {
-    if (fill instanceof Boolean) {
-      this.baseFill = (Boolean) fill;
-    } else if (fill instanceof List) {
-      @SuppressWarnings("unchecked")
-      List<Boolean> fs = (List<Boolean>) fill;
-      setFills(fs);
-    } else {
-      throw new IllegalArgumentException(
-          "setFill takes boolean or List of boolean");
-    }
+  public void setFill(Boolean fill) {
+    this.baseFill = fill;
+  }
+
+  public void setFill(List<Boolean> fill) {
+    setFills(fill);
   }
 
   private void setFills(List<Boolean> fills) {
@@ -145,17 +103,12 @@ public class CategoryArea extends CategoryGraphics {
     return this.fills;
   }
 
-  public void setDrawOutline(Object outline) {
-    if (outline instanceof Boolean) {
-      this.baseOutline = (Boolean) outline;
-    } else if (outline instanceof List) {
-      @SuppressWarnings("unchecked")
-      List<Boolean> fs = (List<Boolean>) outline;
-      this.outlines = fs;
-    } else {
-      throw new IllegalArgumentException(
-          "drawOutline takes boolean or List of boolean");
-    }
+  public void setDrawOutline(Boolean outline) {
+    this.baseOutline = outline;
+  }
+
+  public void setDrawOutline(List<Boolean> outline) {
+    this.outlines = outline;
   }
 
   public List<Boolean> getDrawOutlines() {

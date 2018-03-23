@@ -15,16 +15,21 @@
  */
 package com.twosigma.beakerx.evaluator;
 
+import com.twosigma.beakerx.inspect.InspectResult;
+import com.twosigma.beakerx.TryResult;
+import com.twosigma.beakerx.kernel.AddImportStatus;
+import com.twosigma.beakerx.kernel.Repos;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 import com.twosigma.beakerx.kernel.Classpath;
 import com.twosigma.beakerx.kernel.ImportPath;
 import com.twosigma.beakerx.kernel.Imports;
 import com.twosigma.beakerx.kernel.PathToJar;
-import com.twosigma.beakerx.kernel.KernelParameters;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
+
 import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,33 +42,21 @@ public interface Evaluator {
 
   Logger logger = LoggerFactory.getLogger(Evaluator.class.getName());
 
-  void initKernel(KernelParameters kernelParameters);
-
-  void setShellOptions(final KernelParameters kernelParameters) throws IOException;
+  void setShellOptions(final EvaluatorParameters kernelParameters) throws IOException;
 
   AutocompleteResult autocomplete(String code, int caretPosition);
+
+  InspectResult inspect(String code, int caretPosition);
 
   void killAllThreads();
 
   void cancelExecution();
 
-  void evaluate(SimpleEvaluationObject seo, String code);
+  TryResult evaluate(SimpleEvaluationObject seo, String code);
 
   void exit();
 
-  static Path createJupyterTempFolder() {
-    Path ret = null;
-    try {
-      ret = Files.createTempDirectory("beaker");
-    } catch (IOException e) {
-      logger.error("No temp folder set for beaker", e);
-    }
-    return ret.toAbsolutePath();
-  }
-
   void resetEnvironment();
-
-  boolean addJarToClasspath(PathToJar path);
 
   List<Path> addJarsToClasspath(List<PathToJar> paths);
 
@@ -71,7 +64,11 @@ public interface Evaluator {
 
   Imports getImports();
 
-  void addImport(ImportPath anImport);
+  AddImportStatus addImport(ImportPath anImport);
 
   void removeImport(ImportPath anImport);
+
+  Path getTempFolder();
+
+  Class<?> loadClass(String clazzName) throws ClassNotFoundException;
 }

@@ -15,12 +15,36 @@
 from .runtime import BeakerX
 from .plot import *
 from .easyform import *
+from .tabledisplay import *
+from .output_container import *
 from ._version import version_info, __version__
+from .handlers import load_jupyter_server_extension
+from .environment import *
+from .commands import parse
 
 def _jupyter_nbextension_paths():
     return [{
+        'section': 'tree',
+        'src': 'static',
+        'dest': 'beakerx',
+        'require': 'beakerx/tree'
+    }, {
         'section': 'notebook',
         'src': 'static',
         'dest': 'beakerx',
         'require': 'beakerx/extension'
-    }]
+    }
+    ]
+
+
+def _jupyter_server_extension_paths():
+    return [dict(module="beakerx")]
+
+beakerx = BeakerX()
+
+def run():
+    try:
+        parse()
+    except KeyboardInterrupt:
+        return 130
+    return 0

@@ -15,28 +15,33 @@
  */
 package com.twosigma.beakerx.kernel;
 
+import com.twosigma.beakerx.jvm.classloader.BeakerxUrlClassLoader;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.ArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ImportsTest {
 
   private Imports imports;
+  private BeakerxUrlClassLoader urlClassLoader;
 
   @Before
   public void setUp() throws Exception {
-    imports = new Imports();
+    imports = new Imports(new ArrayList<>());
+    urlClassLoader = new BeakerxUrlClassLoader();
   }
 
   @Test
   public void shouldNotHaveDuplications() throws Exception {
     //given
-    ImportPath anImport = new ImportPath("com.twosigma.beakerx.widgets.integers.IntSlider");
+    ImportPath anImport = new ImportPath("com.twosigma.beakerx.widget.IntSlider");
     //when
-    assertThat(imports.add(anImport)).isTrue();
-    assertThat(imports.add(anImport)).isFalse();
+    assertThat(imports.add(anImport, urlClassLoader)).isEqualTo(AddImportStatus.ADDED);
+    assertThat(imports.add(anImport, urlClassLoader)).isEqualTo(AddImportStatus.EXISTS);
     //then
-    assertThat(imports.getImportPaths()).containsExactly(new ImportPath("com.twosigma.beakerx.widgets.integers.IntSlider"));
+    assertThat(imports.getImportPaths()).containsExactly(new ImportPath("com.twosigma.beakerx.widget.IntSlider"));
   }
 }

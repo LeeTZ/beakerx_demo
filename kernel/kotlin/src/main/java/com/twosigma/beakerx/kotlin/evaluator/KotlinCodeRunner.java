@@ -15,62 +15,78 @@
  */
 package com.twosigma.beakerx.kotlin.evaluator;
 
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.evaluator.InternalVariable;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
+import org.jetbrains.kotlin.cli.common.repl.ReplEvalResult;
+import org.jetbrains.kotlin.cli.jvm.repl.ReplInterpreter;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.util.concurrent.Callable;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.twosigma.beakerx.evaluator.BaseEvaluator.INTERUPTED_MSG;
 
-class KotlinCodeRunner<T> implements Runnable {
+class KotlinCodeRunner implements Callable<TryResult> {
 
   private final SimpleEvaluationObject theOutput;
-  private final T instance;
-  private final Method theMth;
-  private final boolean retObject;
   private final ClassLoader loader;
+  private final ReplInterpreter repl;
+  private final String codeToBeExecuted;
 
-  public KotlinCodeRunner(T instance, Method mth, SimpleEvaluationObject out, boolean ro, ClassLoader ld) {
-    this.instance = instance;
-    theMth = mth;
-    theOutput = checkNotNull(out);
-    retObject = ro;
-    loader = ld;
+  public KotlinCodeRunner(SimpleEvaluationObject out, ClassLoader ld, ReplInterpreter repl, String codeToBeExecuted) {
+    this.theOutput = checkNotNull(out);
+    this.loader = checkNotNull(ld);
+    this.repl = checkNotNull(repl);
+    this.codeToBeExecuted = codeToBeExecuted;
   }
 
   @Override
-  public void run() {
+  public TryResult call() throws Exception {
+    TryResult either;
     ClassLoader oldld = Thread.currentThread().getContextClassLoader();
     Thread.currentThread().setContextClassLoader(loader);
-    theOutput.setOutputHandler();
     InternalVariable.setValue(theOutput);
     try {
+      theOutput.setOutputHandler();
       InternalVariable.setValue(theOutput);
-      Object o = theMth.invoke(instance, (Object[]) null);
-      if (retObject) {
-        theOutput.finished(o);
-      } else {
-        theOutput.finished(null);
-      }
+      ReplEvalResult eval = repl.eval(this.codeToBeExecuted);
+      either = interpretResult(eval);
     } catch (Throwable e) {
       if (e instanceof InvocationTargetException)
         e = ((InvocationTargetException) e).getTargetException();
       if ((e instanceof InterruptedException) || (e instanceof ThreadDeath)) {
-        theOutput.error(INTERUPTED_MSG);
+        either = TryResult.createError(INTERUPTED_MSG);
       } else {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         e.printStackTrace(pw);
-        theOutput.error(sw.toString());
+        either = TryResult.createError(sw.toString());
       }
-    } finally {
-      theOutput.executeCodeCallback();
+    }finally {
+      theOutput.clrOutputHandler();
+      Thread.currentThread().setContextClassLoader(oldld);
     }
-    theOutput.clrOutputHandler();
-    Thread.currentThread().setContextClassLoader(oldld);
+    return either;
+  }
+
+  private TryResult interpretResult(Object o) {
+    TryResult either;
+    if (o == null) {
+      either = TryResult.createResult(null);
+    } else if (o instanceof ReplEvalResult.UnitResult) {
+      either = TryResult.createResult(null);
+    } else if (o instanceof ReplEvalResult.ValueResult) {
+      Object value = ((ReplEvalResult.ValueResult) o).getValue();
+      either = TryResult.createResult(value);
+    } else if (o instanceof ReplEvalResult.Error) {
+      String message = ((ReplEvalResult.Error) o).getMessage();
+      either = TryResult.createError(message);
+    } else {
+      either = TryResult.createError(o.toString());
+    }
+    return either;
   }
 }

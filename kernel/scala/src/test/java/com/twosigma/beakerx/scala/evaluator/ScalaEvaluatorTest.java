@@ -16,16 +16,18 @@
 
 package com.twosigma.beakerx.scala.evaluator;
 
-import com.twosigma.ExecuteCodeCallbackTest;
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.chart.xychart.Plot;
-import com.twosigma.beakerx.evaluator.TestBeakerCellExecutor;
 import com.twosigma.beakerx.kernel.KernelManager;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
-import com.twosigma.beakerx.kernel.KernelParameters;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
+import com.twosigma.beakerx.kernel.PathToJar;
+import com.twosigma.beakerx.scala.TestScalaEvaluator;
 import com.twosigma.beakerx.scala.kernel.ScalaKernelMock;
 
-import org.assertj.core.api.Assertions;
+import com.twosigma.beakerx.widget.DisplayableWidget;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,16 +38,17 @@ import java.util.List;
 import java.util.Map;
 
 import static com.twosigma.beakerx.DefaultJVMVariables.IMPORTS;
-import static com.twosigma.beakerx.evaluator.EvaluatorResultTestWatcher.waitForResult;
-import static com.twosigma.beakerx.jvm.object.SimpleEvaluationObject.EvaluationStatus.ERROR;
-import static com.twosigma.beakerx.jvm.object.SimpleEvaluationObject.EvaluationStatus.FINISHED;
+import static com.twosigma.beakerx.KernelExecutionTest.DEMO_JAR;
+import static java.util.Collections.singletonList;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class ScalaEvaluatorTest {
+
   private static ScalaEvaluator scalaEvaluator;
 
   @BeforeClass
   public static void setUpClass() throws Exception {
-    scalaEvaluator = new ScalaEvaluator("id", "sid", null, TestBeakerCellExecutor.cellExecutor(), new NoBeakerxObjectTestFactory());
+    scalaEvaluator = TestScalaEvaluator.evaluator();
   }
 
   @Before
@@ -59,33 +62,23 @@ public class ScalaEvaluatorTest {
     KernelManager.register(null);
   }
 
+  @AfterClass
+  public static void tearDownClass() throws Exception {
+    scalaEvaluator.exit();
+  }
+
   @Test
   public void evaluatePlot_shouldCreatePlotObject() throws Exception {
     //given
     String code = "import com.twosigma.beakerx.chart.xychart.Plot;\n" +
             "val plot = new Plot();\n" +
             "plot.setTitle(\"test title\");";
-    SimpleEvaluationObject seo = new SimpleEvaluationObject(code, new ExecuteCodeCallbackTest());
+    SimpleEvaluationObject seo = new SimpleEvaluationObject(code);
     //when
-    scalaEvaluator.evaluate(seo, code);
-    waitForResult(seo);
+    TryResult evaluate = scalaEvaluator.evaluate(seo, code);
     //then
-    Assertions.assertThat(seo.getStatus()).isEqualTo(FINISHED);
-    Assertions.assertThat(seo.getPayload() instanceof Plot).isTrue();
-    Assertions.assertThat(((Plot) seo.getPayload()).getTitle()).isEqualTo("test title");
-  }
-
-  @Test
-  public void evaluateDivisionByZero_shouldReturnArithmeticException() throws Exception {
-    //given
-    String code = "16/0";
-    SimpleEvaluationObject seo = new SimpleEvaluationObject(code, new ExecuteCodeCallbackTest());
-    //when
-    scalaEvaluator.evaluate(seo, code);
-    waitForResult(seo);
-    //then
-    Assertions.assertThat(seo.getStatus()).isEqualTo(ERROR);
-    Assertions.assertThat((String) seo.getPayload()).contains("java.lang.ArithmeticException");
+    assertThat(evaluate.result() instanceof Plot).isTrue();
+    assertThat(((Plot) evaluate.result()).getTitle()).isEqualTo("test title");
   }
 
   @Test
@@ -96,27 +89,51 @@ public class ScalaEvaluatorTest {
     List<String> imports = Arrays.asList(
             "import static com.twosigma.beakerx.scala.evaluator.object.ImportTestHelper.staticMethod");
     paramMap.put(IMPORTS, imports);
-    KernelParameters kernelParameters = new KernelParameters(paramMap);
+    EvaluatorParameters kernelParameters = new EvaluatorParameters(paramMap);
     //when
     scalaEvaluator.setShellOptions(kernelParameters);
     String code = "val x = staticMethod()";
-    SimpleEvaluationObject seo = new SimpleEvaluationObject(code, new ExecuteCodeCallbackTest());
-    scalaEvaluator.evaluate(seo, code);
-    waitForResult(seo);
+    SimpleEvaluationObject seo = new SimpleEvaluationObject(code);
+    TryResult evaluate = scalaEvaluator.evaluate(seo, code);
     //then
-    Assertions.assertThat(seo.getStatus()).isEqualTo(FINISHED);
+    assertThat(evaluate.result()).isNull();
   }
 
   @Test
   public void incompleteInput_shouldBeDetected() throws Exception {
     //given
     String code = "1 to 10 map { i => i * 2";
-    SimpleEvaluationObject seo = new SimpleEvaluationObject(code, new ExecuteCodeCallbackTest());
+    SimpleEvaluationObject seo = new SimpleEvaluationObject(code);
     //when
-    scalaEvaluator.evaluate(seo, code);
-    waitForResult(seo);
+    TryResult evaluate = scalaEvaluator.evaluate(seo, code);
     //then
-    Assertions.assertThat(seo.getStatus()).isEqualTo(ERROR);
-    Assertions.assertThat((String) seo.getPayload()).contains("incomplete");
+    assertThat(evaluate.error()).contains("incomplete");
+  }
+
+  @Test
+  public void displayTable() throws Exception {
+    //given
+    String code = "val table = new TableDisplay(new CSV().readFile(\"src/test/resources/tableRowsTest.csv\"))\n" +
+            "table";
+    SimpleEvaluationObject seo = new SimpleEvaluationObject(code);
+    //when
+    TryResult evaluate = scalaEvaluator.evaluate(seo, code);
+    //then
+    assertThat(evaluate.result() instanceof DisplayableWidget).isTrue();
+  }
+
+  @Test
+  public void newShellAndTheSameClassLoaderWhenAddJars() throws Exception {
+    //given
+    ScalaEvaluatorGlue shell = scalaEvaluator.getShell();
+    ClassLoader classLoader = scalaEvaluator.getClassLoader();
+    //when
+    scalaEvaluator.addJarsToClasspath(singletonList(new PathToJar(DEMO_JAR)));
+    //then
+    assertThat(scalaEvaluator.getShell()).isNotEqualTo(shell);
+    //assertThat(scalaEvaluator.getClassLoader()).isEqualTo(classLoader);
+    //have to introduce native lib problem to solve input output problem
+    assertThat(scalaEvaluator.getClassLoader()).isNotEqualTo(classLoader);
   }
 }
+

@@ -18,35 +18,52 @@ package com.twosigma.beakerx.chart.xychart.plotitem;
 
 import com.twosigma.beakerx.chart.Color;
 import com.twosigma.beakerx.chart.Graphics;
+import com.twosigma.beakerx.util.DateUtil;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Calendar;
 import java.util.Date;
 
 /**
  * ConstantLine
- *
  */
-public class ConstantLine extends Graphics{
-  private Number      x;
-  private Number      y;
-  private Color       baseColor;
-  private Float       width       = 1.5f;
-  private StrokeType  style;
-  private Class       plotType;
-  private boolean     showLabel;
-
+public class ConstantLine extends Graphics {
+  private Number x;
+  private Number y;
+  private Color baseColor;
+  private Float width = 1.5f;
+  private StrokeType style;
+  private Class plotType;
+  private boolean showLabel;
 
   public Number getX() {
     return x;
   }
 
-  public void setX(Object x) {
-    if (x instanceof Number) {
-      this.x = (Number)x;
-    } else if (x instanceof Date) {
-      this.x = ((Date)x).getTime();
-    } else {
-      throw new IllegalArgumentException("x takes Number or Date");
-    }
+  public void setX(Number x) {
+    this.x = x;
+  }
+
+  public void setX(Date x) {
+    this.x = DateUtil.dateToLong(x);
+  }
+
+  public void setX(Calendar x) {
+    this.x = DateUtil.dateToLong(x);
+  }
+
+  public void setX(Instant x) {
+    this.x = DateUtil.dateToLong(x);
+  }
+
+  public void setX(LocalDateTime x) {
+    this.x = DateUtil.dateToLong(x);
+  }
+
+  public void setX(LocalDate x) {
+    this.x = DateUtil.dateToLong(x);
   }
 
   public Number getY() {
@@ -57,15 +74,12 @@ public class ConstantLine extends Graphics{
     this.y = y;
   }
 
-  public void setColor(Object color) {
-    if (color instanceof Color) {
-      this.baseColor = (Color) color;
-    } else if (color instanceof java.awt.Color) {
-      this.baseColor = new Color((java.awt.Color) color);
-    } else {
-      throw new IllegalArgumentException(
-        "setColor takes Color or java.awt.Color");
-    }
+  public void setColor(Color color) {
+    this.baseColor = color;
+  }
+
+  public void setColor(java.awt.Color color) {
+    setColor(new Color(color));
   }
 
   @Override

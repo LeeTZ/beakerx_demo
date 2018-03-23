@@ -16,7 +16,7 @@
 package com.twosigma.beakerx.easyform.formitem.widgets;
 
 import com.twosigma.beakerx.easyform.EasyFormComponent;
-import com.twosigma.beakerx.widgets.strings.Label;
+import com.twosigma.beakerx.widget.Label;
 import com.twosigma.beakerx.message.Message;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -24,7 +24,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.twosigma.beakerx.widgets.TestWidgetUtils.getValueForProperty;
+import static com.twosigma.beakerx.widget.TestWidgetUtils.getValueForProperty;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -36,18 +36,16 @@ public class CheckBoxGroupWidgetTest extends EasyFormWidgetTest {
   public void setValues() throws Exception {
     //given
     List<String> newValue = Arrays.asList("1", "2", "3");
-    CheckBoxGroupWidget widget = new CheckBoxGroupWidget();
+    CheckBoxGroupWidget widget = new CheckBoxGroupWidget(newValue);
     kernel.clearPublishedMessages();
-    //when
-    widget.setValues(newValue);
     //then
-    assertTrue("Comm msgs should be 9", kernel.getPublishedMessages().size() == 9);
+    assertTrue("Comm msgs should be 0", kernel.getPublishedMessages().size() == 0);
     Assertions.assertThat(widget.getValue()).isEqualTo(EMPTY);
   }
 
   @Override
   protected EasyFormComponent createWidget() {
-    return new CheckBoxGroupWidget();
+    return new CheckBoxGroupWidget(Arrays.asList("1", "2", "3"), true);
   }
 
   @Override

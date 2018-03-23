@@ -16,9 +16,9 @@
 package com.twosigma.beakerx.easyform.formitem.widgets;
 
 import com.twosigma.beakerx.easyform.EasyFormComponent;
-import com.twosigma.beakerx.widgets.ValueWidget;
-import com.twosigma.beakerx.widgets.selections.RadioButtons;
-import com.twosigma.beakerx.widgets.box.HBox;
+import com.twosigma.beakerx.widget.ValueWidget;
+import com.twosigma.beakerx.widget.RadioButtons;
+import com.twosigma.beakerx.widget.HBox;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,7 +31,14 @@ public class RadioButtonComponentWidget extends EasyFormComponent<ValueWidget<?>
   private Boolean horizontal;
 
   public RadioButtonComponentWidget() {
-    this.radioButtons = new RadioButtons();
+    super(new RadioButtons());
+    radioButtons = (RadioButtons) widget;
+  }
+
+  public RadioButtonComponentWidget(Collection<String> values, boolean horizontal) {
+    this();
+    setValues(values);
+    setHorizontal(horizontal);
   }
 
   public void setHorizontal(final Boolean horizontal) {
@@ -58,7 +65,7 @@ public class RadioButtonComponentWidget extends EasyFormComponent<ValueWidget<?>
   }
 
   @Override
-  public void setValue(String value) {
+  public void setValue(Object value) {
     radioButtons.setValue(value);
   }
 

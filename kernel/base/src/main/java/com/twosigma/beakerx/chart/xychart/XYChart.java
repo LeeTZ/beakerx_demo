@@ -149,6 +149,10 @@ abstract public class XYChart extends AbstractChart {
     return this.xAutoRange;
   }
 
+  public Boolean getxAutoRange() {
+    return getXAutoRange();
+  }
+
   public XYChart setXBound(double lower, double upper) {
     this.xAutoRange = false;
     this.xLowerBound = lower;
@@ -157,20 +161,22 @@ abstract public class XYChart extends AbstractChart {
     return this;
   }
 
-  public XYChart setXBound(List bound) {
+  public XYChart setxBound(double lower, double upper) {
+    return setXBound(lower, upper);
+  }
+
+  public XYChart setXBound(List<Number> bound) {
     if (bound.size() != 2) {
       throw new IllegalArgumentException("to set the x bound, the list needs to be of size=2");
     }
-    if (!(bound.get(0) instanceof Number) || !(bound.get(1) instanceof Number)) {
-      throw new IllegalArgumentException("the elements in the list needs to be numbers");
-    }
-    Number n0 = (Number) bound.get(0);
-    Number n1 = (Number) bound.get(1);
+
+    Number n0 = bound.get(0);
+    Number n1 = bound.get(1);
     setXBound(n0.doubleValue(), n1.doubleValue());
     return this;
   }
 
-  public XYChart setxBound(List bound) {
+  public XYChart setxBound(List<Number> bound) {
     return this.setXBound(bound);
   }
 
@@ -178,17 +184,16 @@ abstract public class XYChart extends AbstractChart {
     return this.xLowerBound;
   }
 
+  public Double getxLowerBound() {
+    return getXLowerBound();
+  }
+
   public Double getXUpperBound() {
     return this.xUpperBound;
   }
 
-  public XYChart setYAutoRange(boolean yAutoRange) {
-    setXAutoRange(yAutoRange);
-    return this;
-  }
-
-  public XYChart setyAutoRange(boolean yAutoRange) {
-    return this.setYAutoRange(yAutoRange);
+  public Double getxUpperBound() {
+    return getXUpperBound();
   }
 
   public XYChart setLogX(boolean logX) {
@@ -203,6 +208,10 @@ abstract public class XYChart extends AbstractChart {
 
   public Double getXLogBase() {
     return xLogBase;
+  }
+
+  public Double getxLogBase() {
+    return getXLogBase();
   }
 
   public XYChart setXLogBase(double xLogBase) {
@@ -228,17 +237,33 @@ abstract public class XYChart extends AbstractChart {
     return xTickLabelsVisible;
   }
 
+  public boolean isXTickLabelsVisible() {
+    return isxTickLabelsVisible();
+  }
+
   public void setxTickLabelsVisible(boolean xTickLabelsVisible) {
     this.xTickLabelsVisible = xTickLabelsVisible;
     sendModelUpdate(ChartToJson.serializeXTickLabelsVisible(this.xTickLabelsVisible));
+  }
+
+  public void setXTickLabelsVisible(boolean xTickLabelsVisible) {
+    setxTickLabelsVisible(xTickLabelsVisible);
   }
 
   public boolean isyTickLabelsVisible() {
     return yTickLabelsVisible;
   }
 
+  public boolean isYTickLabelsVisible() {
+    return isyTickLabelsVisible();
+  }
+
   public void setyTickLabelsVisible(boolean yTickLabelsVisible) {
     this.yTickLabelsVisible = yTickLabelsVisible;
     sendModelUpdate(ChartToJson.serializeYTickLabelsVisible(this.yTickLabelsVisible));
+  }
+
+  public void setYTickLabelsVisible(boolean yTickLabelsVisible) {
+    setyTickLabelsVisible(yTickLabelsVisible);
   }
 }

@@ -20,10 +20,11 @@ import com.twosigma.beakerx.NamespaceClient;
 import com.twosigma.beakerx.groovy.kernel.GroovyDefaultVariables;
 import com.twosigma.beakerx.groovy.kernel.GroovyKernelMock;
 import com.twosigma.beakerx.kernel.KernelManager;
-import com.twosigma.beakerx.kernel.KernelParameters;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
+import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -32,36 +33,40 @@ import java.util.HashMap;
 
 import static com.twosigma.beakerx.DefaultJVMVariables.CLASSPATH;
 import static com.twosigma.beakerx.DefaultJVMVariables.IMPORTS;
+import static com.twosigma.beakerx.evaluator.EvaluatorTest.getTestTempFolderFactory;
 import static com.twosigma.beakerx.evaluator.TestBeakerCellExecutor.cellExecutor;
 import static com.twosigma.beakerx.groovy.evaluator.GroovyClassLoaderFactory.newEvaluator;
+import static com.twosigma.beakerx.groovy.evaluator.GroovyClassLoaderFactory.newParentClassLoader;
 
 public class GroovyEvaluatorTest {
 
   static GroovyClassLoader groovyClassLoader;
   static GroovyKernelMock groovyKernel;
   static Binding scriptBinding;
+  static GroovyEvaluator groovyEvaluator;
+  static ImportCustomizer icz = new ImportCustomizer();
 
   @BeforeClass
   public static void initClassStubData() throws IOException {
-    GroovyEvaluator groovyEvaluator = new GroovyEvaluator("123", "345", cellExecutor());
-
     GroovyDefaultVariables var = new GroovyDefaultVariables();
     HashMap<String, Object> params = new HashMap<>();
     params.put(IMPORTS, var.getImports());
     params.put(CLASSPATH, var.getClassPath());
-    KernelParameters kernelParameters = new KernelParameters(params);
+    EvaluatorParameters kernelParameters = new EvaluatorParameters(params);
 
+    GroovyEvaluator groovyEvaluator = new GroovyEvaluator("123", "345", cellExecutor(), getTestTempFolderFactory(), kernelParameters);
     groovyEvaluator.setShellOptions(kernelParameters);
-    groovyClassLoader = newEvaluator(groovyEvaluator.getImports(),groovyEvaluator.getClasspath(),groovyEvaluator.getOutDir());
+    groovyClassLoader = newEvaluator(groovyEvaluator.getImports(), groovyEvaluator.getClasspath(), groovyEvaluator.getOutDir(), icz, newParentClassLoader(groovyEvaluator.getClasspath()));
     scriptBinding = new Binding();
     scriptBinding.setVariable("beaker", NamespaceClient.getBeaker("345"));
-    groovyKernel = new GroovyKernelMock();
+    groovyKernel = new GroovyKernelMock("groovyEvaluatorTest", groovyEvaluator);
     KernelManager.register(groovyKernel);
   }
 
   @AfterClass
   public static void tearDown() throws Exception {
     KernelManager.register(null);
+    groovyKernel.exit();
   }
 
   public Object parseClassFromScript(String script) {

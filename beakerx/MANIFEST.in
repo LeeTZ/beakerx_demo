@@ -1,7 +1,7 @@
 recursive-include beakerx/static *
+recursive-include beakerx/kernel *
+recursive-include beakerx/javadoc *
 
 include LICENSE
 include NOTICE
-include CONTRIBUTING.md
-include README.md
 include setupbase.py

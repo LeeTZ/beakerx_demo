@@ -16,17 +16,21 @@
 package com.twosigma.beakerx.easyform.formitem.widgets;
 
 import com.twosigma.beakerx.easyform.EasyFormComponent;
-import com.twosigma.beakerx.widgets.bools.Checkbox;
+import com.twosigma.beakerx.widget.Checkbox;
 
 public class CheckBoxWidget extends EasyFormComponent<Checkbox> {
 
   public CheckBoxWidget() {
     super(new Checkbox());
   }
+
+  public CheckBoxWidget(String description) {
+    super(new Checkbox(description));
+  }
   
   @Override
-  public void setValue(String value) {
-    this.widget.setValue(Boolean.valueOf(value));
+  public void setValue(Object value) {
+    this.widget.setValue(Boolean.valueOf(value.toString()));
   }
 
   

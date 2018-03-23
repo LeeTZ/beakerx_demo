@@ -14,53 +14,70 @@
     limitations under the License.
 -->
 
+<img width="900" alt="banner" src="https://user-images.githubusercontent.com/963093/34594978-31d70312-f1a2-11e7-861c-705a9e932c3c.png">
+
 # BeakerX: Beaker extensions for Jupyter
 
-[![Build Status](http://ec2-54-175-192-115.compute-1.amazonaws.com:8080/buildStatus/icon?job=BeakerX%20master)](http://ec2-54-175-192-115.compute-1.amazonaws.com:8080/job/BeakerX%20master)
+[![Build Status](http://ec2-54-175-192-115.compute-1.amazonaws.com:8080/buildStatus/icon?job=BeakerX_master)](http://ec2-54-175-192-115.compute-1.amazonaws.com:8080/job/BeakerX_master)
 [![Gitter chat](https://badges.gitter.im/twosigma/beakerx.png)](https://gitter.im/twosigma/beakerx)
 [![Release](https://jitpack.io/v/twosigma/beakerx.svg)](https://jitpack.io/#twosigma/beakerx)
 [![NPM version](https://badge.fury.io/js/beakerx.svg)](http://badge.fury.io/js/beakerx)
 [![PyPI Version](https://badge.fury.io/py/beakerx.svg)](http://badge.fury.io/py/beakerx)
+[![Anaconda-Server Badge](https://anaconda.org/conda-forge/beakerx/badges/version.svg)](https://anaconda.org/conda-forge/beakerx)
+[![Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/twosigma/beakerx/0.14.0?filepath=StartHere.ipynb)
 
-BeakerX is a collection of JVM kernels with widgets, plotting, tables,
-autotranslation, and other extensions to the Jupyter Notebook and
-Jupyter Lab.  BeakerX is in alpha, with major features still under
-development, including incompatible changes without notice.
+BeakerX is a collection of JVM kernels and interactive widgets for
+plotting, tables, autotranslation, and other extensions to Jupyter
+Notebook.  BeakerX is in beta and under active development.
 
-The [documentation](https://github.com/twosigma/beakerx/blob/master/doc/StartHere.ipynb) consists of tutorial notebooks on GitHub.
+The [documentation](https://github.com/twosigma/beakerx/blob/master/StartHere.ipynb) consists of tutorial notebooks on GitHub.
+You can try it in the cloud for free with [Binder](https://mybinder.org/v2/gh/twosigma/beakerx/0.14.0?filepath=StartHere.ipynb).
 
-BeakerX is the successor to the [Beaker
-Notebook (source code archive)](https://github.com/twosigma/beaker-notebook-archive).
+BeakerX is the successor to the [Beaker Notebook (source code
+archive)](https://github.com/twosigma/beaker-notebook-archive).  It
+comes from [Two Sigma Open
+Source](http://opensource.twosigma.com/). Yes we are
+[hiring](https://www.twosigma.com/careers).
 
-## Install
+This README is for developers.  Users should see the
+[documentation](http://beakerx.com/documentation) on the homepage for
+how to install and run BeakerX.
 
-<!-- Install using [conda](https://conda.io/docs/install/quick.html):
 
-```
-conda install -c beakerx beakerx
-``` -->
-
-Using [pip](https://pypi.python.org/pypi/pip):
-
-```
-pip install beakerx
-beakerx-install
-```
-
-## Developer Install
 
 ### Dependencies:
 
-* [conda](https://conda.io/docs/install/quick.html) (any Python 3 environment with [Jupyter Notebook](https://pypi.python.org/pypi/notebook), [Node.js](https://nodejs.org/en/), and [JDK](http://jdk.java.net/8/) installed should be fine, but our documentation assumes conda)
+* [conda](https://www.anaconda.com/download/)
 * [yarn](https://yarnpkg.com/lang/en/docs/install/)
 
-### Install
+### Build and Install
 
 ```
-conda create -y -n beakerx python=3.5 jupyter openjdk nodejs pandas
+conda create -y -n beakerx 'python>=3' nodejs pandas openjdk maven
 source activate beakerx
+conda config --env --add pinned_packages 'openjdk>8.0.121'
+conda install -y -c conda-forge ipywidgets
 (cd beakerx; pip install -e . --verbose)
-beakerx-install
+beakerx install
+```
+
+### Build and Install for Jupyter Lab
+
+```
+conda create -y -n labx 'python>=3' nodejs pandas openjdk maven
+source activate labx
+conda config --env --add pinned_packages 'openjdk>8.0.121'
+conda install -y -c conda-forge jupyterlab
+(cd beakerx; pip install -e . --verbose)
+beakerx install
+jupyter labextension install @jupyter-widgets/jupyterlab-manager
+(cd js/lab; jupyter labextension install .)
+```
+
+### Running with Docker
+
+```
+docker run -p 8888:8888 beakerx/beakerx
 ```
 
 ### Update after Java change
@@ -78,55 +95,104 @@ The notebook extensions are installed to run out of the repo, so just
 a local build should suffice:
 
 ```
-(cd beakerx/js; yarn install)
+(cd js/notebook; yarn install)
 ```
 
-## Beaker Notebooks Converter
+### Run Tests
 
-You can convert classic Beaker Notebook files (with file suffix
-".bkr") to Jupyter Notebooks (with file suffix ".ipynb") as follows:
-
-```
-python -m beakerx.bkr2ipynb *.bkr
-```
+The Java unit tests are run with every build. See [test/README.md] for how to run the e2e tests.
 
 ## Groovy with Interactive Plotting and Tables:
 <img width="900" alt="screen shot" src="https://user-images.githubusercontent.com/963093/28300136-585f9f7c-6b4b-11e7-8827-b5807d3fc9a8.png">
 
-### Autotranslation from Python to JavaScript
+## Autotranslation from Python to JavaScript
 
 <img width="900" alt="screen shot" src="https://cloud.githubusercontent.com/assets/963093/21077947/261def64-bf2a-11e6-8518-4845caf75690.png">
 
-## Running with Docker
+## Architecture and Code Overview
 
-From project root:
+BeakerX is a collection of kernels and extensions for Jupyter.
+The code is organized into subdirectories as follows:
 
-`(cd kernel; gradle clean)`
+* [beakerx](beakerx) The Python packages.  The main beakerx package has:
 
-To build beakerx base image execute
+  * a customized KernelSpec to allow BeakerX to configure the JVMs
+    started to run the kernels,
+  
+  * the beakerx command line program, which has the bkr2ipynb
+    converter as well as install and uninstall functions,
+  
+  * the Python API for the runtime (tables, plots, easyform),
+    including automatically installing a displayer for pandas tables,
+    and autotranslation;
+  
+  * the webpack (compiled JavaScript, TypeScript, CSS, fonts, images);
+    and
 
-`docker build -t beakerx-base -f docker/base/Dockerfile .`
+  * the compiled Java JARs.
 
-To build beakerx image execute
+  There is a separate python package (beakerx_magics) for the
+  `%%groovy` magic so it can always be loaded *without* loading the
+  regular beakerx package (which would turn on display of pandas
+  tables with our table widget).
 
-`docker build -t beakerx -f docker/Dockerfile .`
+* [doc](doc) Documentation consisting of executable tutorial
+  notebooks.  [StartHere.ipynb](StartHere.ipynb) at the top level
+  links to these and is the intended way to navigate them.  There is a
+  subdirectory for each language.
 
-Now if you would like to start BeakerX execute
+* [docker](docker) configuration files for creating the Docker image.
+  There is a subdirectory [docker/base](docker/base) for an image with
+  BeakerX's dependencies (the Ubuntu and conda packages).  The main
+  image is built by compiling BeakerX and installing BeakerX in the
+  base image.
 
-`docker run -p 8888:8888 beakerx `
+* [js](js) There are two subdirectories of JavaScript and TypeScript,
+  [js/lab](js/lab) and [js/notebook](js/notebook).  New code is being
+  written in TypeScript.
+
+  The lab subdirectory has the extension for Jupyter Lab (distributed
+  by npm).  Notebook has two extensions, one for the widgets (which
+  are included in Lab as well, and are also separately distributed
+  with npm for embedded applications such as nbviewer), and one for
+  the notebook application.  This adds a tab to the tree view with our
+  options panel.  And for regular notebook pages the extension
+  handles:
+
+  * running initialization cells,
+  
+  * publication,
+  
+  * autotranslation,
+  
+  * the getCodeCells and runByTag APIs,
+  
+  * callbacks for table and plot actions,
+  
+  * UI customizations such as changing the fonts, allowing wide code
+    cells, and disabling autosave.
+
+* [kernel](kernel) The Java implementation of the kernels is here.
+  The main directory is [kernel/base](kernel/base) which has generic
+  code for all the languages.  The base kernel has classes for
+  Jupyter's Comm protocol (a layer over ZMQ), magics, the classpath
+  (including loading from maven), and the kernel parts of the widget
+  APIs.
+
+  There is also a subdirectory for each language which has the
+  evaluator for that language. Scala has wrappers for the widgets
+  so they have native types.
+
+* [test](test) The e2e tests, which are made with
+  [webdriver](http://webdriver.io/) (selenium, chromedriver, jasmine).
 
 ## Contributing
 
-We welcome developers to extend and improve BeakerX in ways that can
-benefit everyone. In order for us to accept your code or pull request,
-we need for you to fill out and email back to us a scan of a signed copy of the
-[Contributor License Agreement](http://beakernotebook.com/cla.zip).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-BeakerX uses [Google Java
-style](https://google.github.io/styleguide/javaguide.html), and all
-Java code needs unit tests.  For JavaScript we use [Google JS
-style](https://google.github.io/styleguide/jsguide.html) with
-[require](http://requirejs.org/) instead of goog.
+## Releasing
+
+See [RELEASE.md](RELEASE.md).
 
 ## Attribution
 
@@ -159,3 +225,4 @@ database engine (http://www.h2database.com/), which is dual licensed
 and available under the MPL 2.0 (Mozilla Public License) or under the
 EPL 1.0 (Eclipse Public License).  An original copy of the license
 agreement can be found at: http://www.h2database.com/html/license.html
+

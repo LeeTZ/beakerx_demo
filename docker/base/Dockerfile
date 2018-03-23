@@ -20,44 +20,19 @@ RUN useradd beakerx --create-home
 ENV CONDA_DIR /opt/conda
 ENV PATH /opt/conda/bin:$PATH
 ENV NB_USER beakerx
-ENV LC_ALL en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US.UTF-8
+ENV DEBIAN_FRONTEND noninteractive
 
-RUN apt-get update && apt-get dist-upgrade -y
-RUN apt-get install -y sudo curl unzip software-properties-common apt-transport-https git bzip2 wget locales
-RUN add-apt-repository ppa:cwchien/gradle
-RUN apt-get update
-RUN locale-gen en_US.UTF-8
-
-##########
-#  Node  #
-##########
-RUN curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -
-RUN apt-get install -y nodejs
-
-##################
-#      Yarn      #
-##################
-RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
-echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list && \
-apt-get update && apt-get install yarn -y && \
-apt-get clean
-
-##################
-#    MiniConda   #
-##################
-RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
+RUN apt-get update && \
+	apt-get install -y --no-install-recommends apt-utils sudo curl unzip software-properties-common apt-transport-https git bzip2 wget && \
+	apt-get dist-upgrade -y && \
+    echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
     wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \
     /bin/bash ~/miniconda.sh -b -p /opt/conda && \
-    rm ~/miniconda.sh
-
-##########
-#  Java  #
-##########
-RUN conda install -y -c conda-forge openjdk
-
-############
-#  Gradle  #
-############
-RUN apt-get install -y gradle
+    rm ~/miniconda.sh && \
+	curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
+	echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list && \
+	apt-get update && apt-get install yarn -y && \
+	apt-get clean && \
+	conda create -y -n beakerx 'python>=3' nodejs pandas openjdk maven && \
+    conda config --env --add pinned_packages 'openjdk >8.0.121' && \
+	conda install -y -n beakerx -c conda-forge ipywidgets jupyterhub jupyterlab pyzmq pytest

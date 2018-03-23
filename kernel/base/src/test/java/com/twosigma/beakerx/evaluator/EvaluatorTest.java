@@ -16,47 +16,88 @@
 
 package com.twosigma.beakerx.evaluator;
 
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.autocomplete.AutocompleteResult;
+import com.twosigma.beakerx.inspect.InspectResult;
+import com.twosigma.beakerx.jvm.classloader.BeakerxUrlClassLoader;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.jvm.threads.CellExecutor;
+import com.twosigma.beakerx.kernel.CacheFolderFactory;
 import com.twosigma.beakerx.kernel.Classpath;
 import com.twosigma.beakerx.kernel.ImportPath;
 import com.twosigma.beakerx.kernel.Imports;
-import com.twosigma.beakerx.kernel.KernelParameters;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
 import com.twosigma.beakerx.kernel.PathToJar;
+import org.apache.commons.collections.map.HashedMap;
+import org.apache.commons.io.FileUtils;
 
-import java.io.IOException;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 
 public class EvaluatorTest extends BaseEvaluator {
 
-  private KernelParameters kernelParameters;
+
+  public static final EvaluatorParameters KERNEL_PARAMETERS = new EvaluatorParameters(new HashedMap());
   private SimpleEvaluationObject seo;
   private String code;
   private boolean killAllThreads;
   private boolean cancelExecution;
   private boolean exit;
   private Classpath classpath = new Classpath();
-  private Imports imports = new Imports();
+  private Imports imports = new Imports(new ArrayList<>());
   private int resetEnvironmentCounter = 0;
-
+  private BeakerxUrlClassLoader loader = new BeakerxUrlClassLoader(Thread.currentThread().getContextClassLoader());
 
   public EvaluatorTest() {
-    this("idEvaluatorTest", "sIdEvaluatorTest", TestBeakerCellExecutor.cellExecutor());
+    this("idEvaluatorTest", "sIdEvaluatorTest", TestBeakerCellExecutor.cellExecutor(), KERNEL_PARAMETERS);
   }
 
-  public EvaluatorTest(String id, String sId, CellExecutor cellExecutor) {
-    super(id, sId, cellExecutor);
+  public EvaluatorTest(String id, String sId, CellExecutor cellExecutor, EvaluatorParameters kernelParameters) {
+    super(id, sId, cellExecutor, getTestTempFolderFactory(), kernelParameters);
   }
 
   @Override
-  public void setShellOptions(KernelParameters kernelParameters) throws IOException {
-    this.kernelParameters = kernelParameters;
+  public ClassLoader getClassLoader() {
+    return loader;
   }
+
+  public static TempFolderFactory getTestTempFolderFactory() {
+    return new TempFolderFactory() {
+      @Override
+      public Path createTempFolder() {
+        Path path;
+        try {
+          path = Files.createTempDirectory(EvaluatorBaseTest.TEMP_DIR_NAME);
+          path.toFile().deleteOnExit();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+        return path;
+      }
+    };
+  }
+
+  public static CacheFolderFactory getCacheFolderFactory() {
+    return new CacheFolderFactory() {
+      @Override
+      public Path getCache() {
+        return getTestTempFolderFactory().createTempFolder();
+      }
+    };
+  }
+
 
   @Override
   public AutocompleteResult autocomplete(String code, int caretPosition) {
     return new AutocompleteResult(new ArrayList<>(), 0);
+  }
+
+
+  @Override
+  public InspectResult inspect(String code, int caretPosition) {
+    return new InspectResult("", 0);
   }
 
   @Override
@@ -70,14 +111,24 @@ public class EvaluatorTest extends BaseEvaluator {
   }
 
   @Override
-  public void evaluate(SimpleEvaluationObject seo, String code) {
+  public TryResult evaluate(SimpleEvaluationObject seo, String code) {
     this.seo = seo;
     this.code = code;
+    return TryResult.createResult(seo.getPayload());
   }
 
   @Override
   public void exit() {
     exit = true;
+    removeTempFolder();
+  }
+
+  private void removeTempFolder() {
+    try {
+      FileUtils.deleteQuietly(new File(getTempFolder().toString()));
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -92,10 +143,6 @@ public class EvaluatorTest extends BaseEvaluator {
 
   @Override
   protected void doResetEnvironment() {
-  }
-
-  @Override
-  public void initKernel(KernelParameters kernelParameters) {
   }
 
   public SimpleEvaluationObject getSeo() {
@@ -119,13 +166,14 @@ public class EvaluatorTest extends BaseEvaluator {
   }
 
   @Override
-  protected boolean addJar(PathToJar path) {
-    return classpath.add(path);
+  protected void addJarToClassLoader(PathToJar pathToJar) {
+    classpath.add(pathToJar);
+    this.loader.addJar(pathToJar);
   }
 
   @Override
-  protected boolean addImportPath(ImportPath anImport) {
-    return imports.add(anImport);
+  protected void addImportToClassLoader(ImportPath anImport) {
+    imports.add(anImport, loader);
   }
 
   @Override

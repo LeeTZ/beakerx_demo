@@ -15,15 +15,14 @@
  */
 package com.twosigma.beakerx.sql;
 
-import com.twosigma.ExecuteCodeCallbackTest;
 import com.twosigma.beakerx.KernelTest;
-import com.twosigma.beakerx.evaluator.TestBeakerCellExecutor;
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.kernel.KernelManager;
 import com.twosigma.beakerx.jvm.object.OutputCell;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.sql.evaluator.SQLEvaluator;
 import com.twosigma.beakerx.table.TableDisplay;
-import com.twosigma.beakerx.kernel.KernelParameters;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,10 +30,10 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.Map;
 
- import static com.twosigma.beakerx.evaluator.EvaluatorResultTestWatcher.waitForResult;
- import static com.twosigma.beakerx.jvm.object.SimpleEvaluationObject.EvaluationStatus.FINISHED;
-import static com.twosigma.beakerx.kernel.commands.MagicCommand.DATASOURCES;
-import static com.twosigma.beakerx.kernel.commands.MagicCommand.DEFAULT_DATASOURCE;
+import static com.twosigma.beakerx.evaluator.EvaluatorTest.getTestTempFolderFactory;
+import static com.twosigma.beakerx.evaluator.TestBeakerCellExecutor.cellExecutor;
+import static com.twosigma.beakerx.sql.magic.command.DataSourcesMagicCommand.DATASOURCES;
+import static com.twosigma.beakerx.sql.magic.command.DefaultDataSourcesMagicCommand.DEFAULT_DATASOURCE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class SQLEvaluatorTest {
@@ -44,56 +43,52 @@ public class SQLEvaluatorTest {
 
   @Before
   public void setUp() throws Exception {
-    kernelTest = new KernelTest();
-    KernelManager.register(kernelTest);
-    sqlEvaluator = new SQLEvaluator("shellId1", "sessionId1", TestBeakerCellExecutor.cellExecutor());
+    sqlEvaluator = new SQLEvaluator("shellId1", "sessionId1", cellExecutor(), getTestTempFolderFactory(), kernelParameters());
     sqlEvaluator.setShellOptions(kernelParameters());
+    kernelTest = new KernelTest("1", sqlEvaluator);
+    KernelManager.register(kernelTest);
   }
 
   @After
   public void tearDown() throws Exception {
-    sqlEvaluator.exit();
+    kernelTest.exit();
     KernelManager.register(null);
   }
 
   @Test
   public void evaluateSql() throws Exception {
     //given
-    SimpleEvaluationObject seo = new SimpleEvaluationObject(SQLForColorTable.CREATE_AND_SELECT_ALL, new ExecuteCodeCallbackTest());
+    SimpleEvaluationObject seo = new SimpleEvaluationObject(SQLForColorTable.CREATE_AND_SELECT_ALL);
     //when
-    sqlEvaluator.evaluate(seo, seo.getExpression());
-    waitForResult(seo);
+    TryResult evaluate = sqlEvaluator.evaluate(seo, seo.getExpression());
     //then
-    verifyResult(seo);
+    verifyResult(evaluate);
   }
 
-  private void verifyResult(SimpleEvaluationObject seo) {
-    assertThat(seo.getStatus()).isEqualTo(FINISHED);
-    assertThat(seo.getPayload() instanceof TableDisplay).isTrue();
-    TableDisplay result = (TableDisplay) seo.getPayload();
+  private void verifyResult(TryResult seo) {
+    assertThat(seo.result() instanceof TableDisplay).isTrue();
+    TableDisplay result = (TableDisplay) seo.result();
     assertThat(result.getValues().size()).isEqualTo(3);
   }
 
   @Test
   public void insertsShouldReturnOutputCellHIDDEN() throws Exception {
     //given
-    SimpleEvaluationObject seo = new SimpleEvaluationObject(SQLForColorTable.CREATE, new ExecuteCodeCallbackTest());
+    SimpleEvaluationObject seo = new SimpleEvaluationObject(SQLForColorTable.CREATE);
     //when
-    sqlEvaluator.evaluate(seo, seo.getExpression());
-    waitForResult(seo);
+    TryResult evaluate = sqlEvaluator.evaluate(seo, seo.getExpression());
     //then
-    verifyInsertResult(seo);
+    verifyInsertResult(evaluate);
   }
 
-  private void verifyInsertResult(SimpleEvaluationObject seo) {
-    assertThat(seo.getStatus()).isEqualTo(FINISHED);
-    assertThat(seo.getPayload()).isEqualTo(OutputCell.HIDDEN);
+  private void verifyInsertResult(TryResult seo) {
+    assertThat(seo.result()).isEqualTo(OutputCell.HIDDEN);
   }
 
-  private KernelParameters kernelParameters() {
+  private EvaluatorParameters kernelParameters() {
     Map<String, Object> params = new HashMap<>();
     params.put(DATASOURCES, "chemistry=jdbc:h2:mem:chemistry");
     params.put(DEFAULT_DATASOURCE, "jdbc:h2:mem:db1");
-    return new KernelParameters(params);
+    return new EvaluatorParameters(params);
   }
 }

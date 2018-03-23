@@ -15,74 +15,96 @@
  */
 package com.twosigma.beakerx.javash.evaluator;
 
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.autocomplete.AutocompleteResult;
 import com.twosigma.beakerx.autocomplete.ClasspathScanner;
 import com.twosigma.beakerx.evaluator.BaseEvaluator;
 import com.twosigma.beakerx.evaluator.JobDescriptor;
+import com.twosigma.beakerx.evaluator.TempFolderFactory;
+import com.twosigma.beakerx.evaluator.TempFolderFactoryImpl;
 import com.twosigma.beakerx.javash.autocomplete.JavaAutocomplete;
+import com.twosigma.beakerx.javash.autocomplete.JavaClasspathScanner;
+import com.twosigma.beakerx.jvm.classloader.BeakerxUrlClassLoader;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.jvm.threads.BeakerCellExecutor;
 import com.twosigma.beakerx.jvm.threads.CellExecutor;
 import com.twosigma.beakerx.kernel.Classpath;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
 import com.twosigma.beakerx.kernel.ImportPath;
 import com.twosigma.beakerx.kernel.Imports;
+import com.twosigma.beakerx.kernel.PathToJar;
 
 import java.io.File;
+import java.util.concurrent.Executors;
 
 public class JavaEvaluator extends BaseEvaluator {
 
   public static final String WRAPPER_CLASS_NAME = "BeakerWrapperClass1261714175";
   private final String packageId;
-  private ClasspathScanner cps;
+  private JavaClasspathScanner cps;
   private JavaAutocomplete jac;
-  private JavaWorkerThread workerThread;
+  private BeakerxUrlClassLoader loader = null;
 
-  public JavaEvaluator(String id, String sId) {
-    this(id, sId, new BeakerCellExecutor("javash"));
+  public JavaEvaluator(String id, String sId, EvaluatorParameters evaluatorParameters) {
+    this(id, sId, new BeakerCellExecutor("javash"), new TempFolderFactoryImpl(), evaluatorParameters);
   }
 
-  public JavaEvaluator(String id, String sId, CellExecutor cellExecutor) {
-    super(id, sId, cellExecutor);
+  public JavaEvaluator(String id, String sId, CellExecutor cellExecutor, TempFolderFactory tempFolderFactory, EvaluatorParameters evaluatorParameters) {
+    super(id, sId, cellExecutor, tempFolderFactory, evaluatorParameters);
     packageId = "com.twosigma.beaker.javash.bkr" + shellId.split("-")[0];
-    cps = new ClasspathScanner();
+    cps = new JavaClasspathScanner();
     jac = createJavaAutocomplete(cps);
-    classPath = new Classpath();
-    imports = new Imports();
-    workerThread = new JavaWorkerThread(this);
-    workerThread.start();
+    loader = newClassLoader();
   }
 
   @Override
   protected void doResetEnvironment() {
     String cpp = createClasspath(classPath, outDir);
-    cps = new ClasspathScanner(cpp);
+    cps = new JavaClasspathScanner(cpp);
     jac = createAutocomplete(imports, cps);
-    workerThread.updateLoader();
-    workerThread.halt();
+    loader = newClassLoader();
+    executorService.shutdown();
+    executorService = Executors.newSingleThreadExecutor();
+  }
+
+  @Override
+  protected void addJarToClassLoader(PathToJar pathToJar) {
+    loader.addJar(pathToJar);
+  }
+
+  @Override
+  protected void addImportToClassLoader(ImportPath anImport) {
+
   }
 
   @Override
   public void exit() {
-    workerThread.doExit();
+    super.exit();
     cancelExecution();
-    workerThread.halt();
+    executorService.shutdown();
+    executorService = Executors.newSingleThreadExecutor();
   }
 
   @Override
-  public void evaluate(SimpleEvaluationObject seo, String code) {
-    workerThread.add(new JobDescriptor(code, seo));
+  public ClassLoader getClassLoader() {
+    return loader;
+  }
+
+  @Override
+  public TryResult evaluate(SimpleEvaluationObject seo, String code) {
+    return evaluate(seo, new JavaWorkerThread(this, new JobDescriptor(code, seo)));
   }
 
   @Override
   public AutocompleteResult autocomplete(String code, int caretPosition) {
-    return jac.doAutocomplete(code, caretPosition);
+    return jac.doAutocomplete(code, caretPosition, loader, imports);
   }
 
-  private JavaAutocomplete createJavaAutocomplete(ClasspathScanner c) {
+  private JavaAutocomplete createJavaAutocomplete(JavaClasspathScanner c) {
     return new JavaAutocomplete(c);
   }
 
-  private JavaAutocomplete createAutocomplete(Imports imports, ClasspathScanner cps) {
+  private JavaAutocomplete createAutocomplete(Imports imports, JavaClasspathScanner cps) {
     JavaAutocomplete jac = createJavaAutocomplete(cps);
     for (ImportPath st : imports.getImportPaths())
       jac.addImport(st.asString());
@@ -96,13 +118,21 @@ public class JavaEvaluator extends BaseEvaluator {
       cpp += File.pathSeparator;
     }
     cpp += File.pathSeparator;
-    cpp += outDir;
-    cpp += File.pathSeparator;
     cpp += System.getProperty("java.class.path");
     return cpp;
   }
 
   public String getPackageId() {
     return packageId;
+  }
+
+  private BeakerxUrlClassLoader newClassLoader() {
+    BeakerxUrlClassLoader loader = new BeakerxUrlClassLoader(ClassLoader.getSystemClassLoader());
+    loader.addPathToJars(getClasspath().getPaths());
+    return loader;
+  }
+
+  public BeakerxUrlClassLoader getJavaClassLoader() {
+    return loader;
   }
 }

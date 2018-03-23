@@ -15,15 +15,16 @@
  */
 package com.twosigma.beakerx.easyform;
 
-import static com.twosigma.beakerx.widgets.TestWidgetUtils.getData;
-import static com.twosigma.beakerx.widgets.TestWidgetUtils.getValueForProperty;
-import static com.twosigma.beakerx.widgets.TestWidgetUtils.verifyDisplayMsg;
-import static com.twosigma.beakerx.widgets.TestWidgetUtils.verifyInternalOpenCommMsg;
-import static com.twosigma.beakerx.widgets.TestWidgetUtils.verifyInternalOpenCommMsgWitLayout;
-import static com.twosigma.beakerx.widgets.TestWidgetUtils.verifyOpenCommMsg;
-import static com.twosigma.beakerx.widgets.TestWidgetUtils.verifyOpenCommMsgWitoutLayout;
-import static com.twosigma.beakerx.widgets.Widget.VALUE;
-import static com.twosigma.beakerx.widgets.strings.TextTest.verifyTextField;
+import static com.twosigma.beakerx.widget.TestWidgetUtils.getState;
+import static com.twosigma.beakerx.widget.TestWidgetUtils.getValueForProperty;
+import static com.twosigma.beakerx.widget.TestWidgetUtils.verifyDisplayMsg;
+import static com.twosigma.beakerx.widget.TestWidgetUtils.verifyInternalOpenCommMsg;
+import static com.twosigma.beakerx.widget.TestWidgetUtils.verifyInternalOpenCommMsgWitLayout;
+import static com.twosigma.beakerx.widget.TestWidgetUtils.verifyOpenCommMsg;
+import static com.twosigma.beakerx.widget.TestWidgetUtils.verifyOpenCommMsgWitoutLayout;
+import static com.twosigma.beakerx.widget.Widget.VALUE;
+import static com.twosigma.beakerx.widget.strings.PasswordTest.verifyPasswordField;
+import static com.twosigma.beakerx.widget.strings.TextTest.verifyTextField;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -31,20 +32,24 @@ import com.twosigma.beakerx.KernelTest;
 import com.twosigma.beakerx.jupyter.SearchMessages;
 import com.twosigma.beakerx.kernel.KernelManager;
 import com.twosigma.beakerx.message.Message;
-import com.twosigma.beakerx.widgets.BeakerxWidget;
-import com.twosigma.beakerx.widgets.Button;
-import com.twosigma.beakerx.widgets.DatePicker;
-import com.twosigma.beakerx.widgets.Widget;
-import com.twosigma.beakerx.widgets.bools.Checkbox;
-import com.twosigma.beakerx.widgets.box.Box;
-import com.twosigma.beakerx.widgets.box.HBox;
-import com.twosigma.beakerx.widgets.selections.ComboBox;
-import com.twosigma.beakerx.widgets.selections.RadioButtons;
-import com.twosigma.beakerx.widgets.selections.SelectMultiple;
-import com.twosigma.beakerx.widgets.strings.Text;
-import com.twosigma.beakerx.widgets.strings.Textarea;
+import com.twosigma.beakerx.widget.BeakerxWidget;
+import com.twosigma.beakerx.widget.Button;
+import com.twosigma.beakerx.widget.DatePicker;
+import com.twosigma.beakerx.widget.Widget;
+import com.twosigma.beakerx.widget.Checkbox;
+import com.twosigma.beakerx.widget.Box;
+import com.twosigma.beakerx.widget.HBox;
+import com.twosigma.beakerx.widget.ComboBox;
+import com.twosigma.beakerx.widget.RadioButtons;
+import com.twosigma.beakerx.widget.SelectMultiple;
+import com.twosigma.beakerx.widget.SelectMultipleSingle;
+import com.twosigma.beakerx.widget.Password;
+import com.twosigma.beakerx.widget.Text;
+import com.twosigma.beakerx.widget.Textarea;
+
 import java.util.List;
 import java.util.Map;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -78,6 +83,20 @@ public class EasyFormTest {
     easyForm.display();
     //then
     verifyOnInit(kernel.getPublishedMessages().get(0), newValueForTf1);
+  }
+
+  @Test
+  public void textFieldOnChangeMethod() throws Exception {
+    //given
+    final StringBuilder result = new StringBuilder();
+    EasyForm easyForm = new EasyForm("EasyForm with text field");
+    easyForm.addTextField("tf2").onChange(value -> result.append(value));
+    easyForm.display();
+    kernel.clearPublishedMessages();
+    //when
+    easyForm.put("tf2","OK");
+    //then
+    assertThat(result.toString()).isEqualTo("OK");
   }
 
   private void verifyOnInit(Message message, String expected) {
@@ -138,7 +157,7 @@ public class EasyFormTest {
 
   private void verifyButton(List<Message> messages) {
     verifyInternalOpenCommMsgWitLayout(messages, Button.MODEL_NAME_VALUE, Button.VIEW_NAME_VALUE,
-        Widget.MODEL_MODULE_VALUE, Widget.VIEW_MODULE_VALUE);
+            Widget.MODEL_MODULE_VALUE, Widget.VIEW_MODULE_VALUE);
   }
 
   @Test
@@ -150,14 +169,36 @@ public class EasyFormTest {
     easyForm.addList(label, asList("1", "2", "3"));
     easyForm.display();
     //then
-    verifyMultipleSelection(kernel.getPublishedMessages());
+    Object multipleSelectionValue = easyForm.get(label);
+    verifyMultipleSelection(kernel.getPublishedMessages(), (List) multipleSelectionValue);
     verifyEasyForm(kernel.getPublishedMessages(), easyForm.getCommFunctionalities());
     verifyDisplayMsg(kernel.getPublishedMessages());
   }
 
-  private void verifyMultipleSelection(List<Message> messages) {
-    verifyInternalOpenCommMsgWitLayout(messages, SelectMultiple.MODEL_NAME_VALUE,
-        SelectMultiple.VIEW_NAME_VALUE);
+  private void verifyMultipleSelection(List<Message> messages, List multipleSelectionValue) {
+    verifyInternalOpenCommMsgWitLayout(messages, SelectMultiple.MODEL_NAME_VALUE, SelectMultiple.VIEW_NAME_VALUE);
+    assertThat(multipleSelectionValue).isEmpty();
+  }
+
+  @Test
+  public void shouldCreateEasyFormWithSelectMultipleSingle() throws Exception {
+    //given
+    String label = "MultipleSelectionLabel1";
+    //when
+    EasyForm easyForm = new EasyForm("EasyForm with SelectMultipleSingle");
+    easyForm.addList(label, asList("1", "2", "3"), Boolean.FALSE);
+    easyForm.display();
+    //then
+    Object multipleSelectionSingleValue = easyForm.get(label);
+    verifySelectMultipleSingle(kernel.getPublishedMessages(), (List) multipleSelectionSingleValue);
+    verifyEasyForm(kernel.getPublishedMessages(), easyForm.getCommFunctionalities());
+    verifyDisplayMsg(kernel.getPublishedMessages());
+  }
+
+  private void verifySelectMultipleSingle(List<Message> messages, List multipleSelectionSingleValue) {
+    verifyInternalOpenCommMsgWitLayout(messages, SelectMultipleSingle.MODEL_NAME_VALUE,
+            SelectMultipleSingle.VIEW_NAME_VALUE);
+    assertThat(multipleSelectionSingleValue).isEmpty();
   }
 
   @Test
@@ -176,8 +217,8 @@ public class EasyFormTest {
 
   private void verifyCombobox(List<Message> messages) {
     verifyInternalOpenCommMsgWitLayout(messages, ComboBox.MODEL_NAME_VALUE,
-        ComboBox.VIEW_NAME_VALUE,
-        BeakerxWidget.MODEL_MODULE_VALUE, BeakerxWidget.VIEW_MODULE_VALUE);
+            ComboBox.VIEW_NAME_VALUE,
+            BeakerxWidget.MODEL_MODULE_VALUE, BeakerxWidget.VIEW_MODULE_VALUE);
   }
 
   @Test
@@ -227,11 +268,31 @@ public class EasyFormTest {
     easyForm.display();
     //then
     verifyTextField(
-        kernel.getPublishedMessages(),
-        Text.MODEL_NAME_VALUE,
-        Text.MODEL_MODULE_VALUE,
-        Text.VIEW_NAME_VALUE,
-        Text.VIEW_MODULE_VALUE
+            kernel.getPublishedMessages(),
+            Text.MODEL_NAME_VALUE,
+            Text.MODEL_MODULE_VALUE,
+            Text.VIEW_NAME_VALUE,
+            Text.VIEW_MODULE_VALUE
+    );
+    verifyEasyForm(kernel.getPublishedMessages(), easyForm.getCommFunctionalities());
+    verifyDisplayMsg(kernel.getPublishedMessages());
+  }
+
+  @Test
+  public void shouldCreateEasyFormWithPasswordField() throws Exception {
+    //given
+    String label = "pass1";
+    //when
+    EasyForm easyForm = new EasyForm("EasyForm with password field");
+    easyForm.addPasswordField(label, 10);
+    easyForm.display();
+    //then
+    verifyPasswordField(
+            kernel.getPublishedMessages(),
+            Password.MODEL_NAME_VALUE,
+            Password.MODEL_MODULE_VALUE,
+            Password.VIEW_NAME_VALUE,
+            Password.VIEW_MODULE_VALUE
     );
     verifyEasyForm(kernel.getPublishedMessages(), easyForm.getCommFunctionalities());
     verifyDisplayMsg(kernel.getPublishedMessages());
@@ -239,7 +300,7 @@ public class EasyFormTest {
 
   private void verifyEasyForm(List<Message> messages, List<Widget> children) {
     Message msg = SearchMessages.getListWidgetsByViewName(messages, EasyFormView.VIEW_NAME_VALUE)
-        .get(0);
+            .get(0);
     verifyInternalOpenCommMsg(msg, EasyFormView.MODEL_NAME_VALUE, EasyFormView.VIEW_NAME_VALUE);
     verifyChildren(msg, children);
   }
@@ -260,11 +321,11 @@ public class EasyFormTest {
 
   private void verifyDatePicker(List<Message> messages) {
     verifyInternalOpenCommMsgWitLayout(messages, DatePicker.MODEL_NAME_VALUE,
-        DatePicker.VIEW_NAME_VALUE);
+            DatePicker.VIEW_NAME_VALUE);
   }
 
   private void verifyChildren(Message message, List<Widget> children) {
-    Map data = getData(message);
+    Map data = getState(message);
     Object[] objects = (Object[]) data.get(Box.CHILDREN);
     assertThat(objects.length).isEqualTo(children.size());
     for (int i = 0; i < children.size(); i++) {

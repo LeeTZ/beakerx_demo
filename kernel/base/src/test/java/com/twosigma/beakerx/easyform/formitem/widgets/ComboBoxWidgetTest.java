@@ -15,14 +15,14 @@
  */
 package com.twosigma.beakerx.easyform.formitem.widgets;
 
-import static com.twosigma.beakerx.widgets.TestWidgetUtils.getValueForProperty;
-import static com.twosigma.beakerx.widgets.Widget.VALUE;
+import static com.twosigma.beakerx.widget.TestWidgetUtils.getValueForProperty;
+import static com.twosigma.beakerx.widget.Widget.VALUE;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.twosigma.beakerx.easyform.EasyFormComponent;
 import com.twosigma.beakerx.message.Message;
-import com.twosigma.beakerx.widgets.selections.ComboBox;
+import com.twosigma.beakerx.widget.ComboBox;
 import org.junit.Test;
 
 public class ComboBoxWidgetTest extends EasyFormWidgetTest {
@@ -60,6 +60,23 @@ public class ComboBoxWidgetTest extends EasyFormWidgetTest {
   private void verifyEditable(Message message, Boolean expected) {
     Boolean value = getValueForProperty(message, ComboBox.EDITABLE, Boolean.class);
     assertThat(value).isEqualTo(expected);
+  }
+
+  @Test
+  public void setSize() throws Exception {
+    //given
+    Integer newValue = 20;
+    ComboBoxWidget widget = new ComboBoxWidget();
+    kernel.clearPublishedMessages();
+    //when
+    widget.setSize(newValue);
+    //then
+    verifySize(kernel.getPublishedMessages().get(0), newValue);
+  }
+
+  private void verifySize(Message message, Integer expectedSize) {
+    Integer value = getValueForProperty(message, ComboBox.SIZE, Integer.class);
+    assertThat(value).isEqualTo(expectedSize);
   }
 
 

@@ -16,12 +16,13 @@
 
 package com.twosigma.beakerx.evaluator;
 
-import com.twosigma.ExecuteCodeCallbackTest;
 import com.twosigma.beakerx.KernelTest;
-import com.twosigma.beakerx.kernel.KernelParameters;
+import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
+import com.twosigma.beakerx.kernel.PlainCode;
 import com.twosigma.beakerx.message.Message;
-import org.apache.commons.collections.map.HashedMap;
 import org.assertj.core.api.Assertions;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -43,7 +44,12 @@ public class EvaluatorManagerTest {
   public void setUp() throws Exception {
     evaluator = new EvaluatorTest();
     evaluatorManager = new EvaluatorManager(kernel, evaluator);
-    evaluatorManager.setShellOptions(new KernelParameters(new HashMap()));
+    evaluatorManager.setShellOptions(new EvaluatorParameters(new HashMap()));
+  }
+
+  @After
+  public void tearDown() throws Exception {
+    this.evaluator.exit();
   }
 
   @Test
@@ -73,8 +79,9 @@ public class EvaluatorManagerTest {
   @Test
   public void executeCode_callEvaluatorToEvaluate() {
     String code = "test code";
+    SimpleEvaluationObject seo = PlainCode.createSimpleEvaluationObject(code, kernel, new Message(), 5);
     //when
-    evaluatorManager.executeCode(code, new Message(), 5, new ExecuteCodeCallbackTest());
+    evaluatorManager.executeCode(code, seo);
     //then
     Assertions.assertThat(evaluator.getCode()).isEqualTo(code);
   }

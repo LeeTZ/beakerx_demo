@@ -15,56 +15,94 @@
  */
 package com.twosigma.beakerx.kotlin.evaluator;
 
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.autocomplete.AutocompleteResult;
 import com.twosigma.beakerx.autocomplete.ClasspathScanner;
 import com.twosigma.beakerx.evaluator.BaseEvaluator;
 import com.twosigma.beakerx.evaluator.JobDescriptor;
+import com.twosigma.beakerx.evaluator.TempFolderFactory;
+import com.twosigma.beakerx.evaluator.TempFolderFactoryImpl;
+import com.twosigma.beakerx.jvm.classloader.BeakerxUrlClassLoader;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.jvm.threads.BeakerCellExecutor;
 import com.twosigma.beakerx.jvm.threads.CellExecutor;
 import com.twosigma.beakerx.kernel.Classpath;
-import org.jetbrains.annotations.NotNull;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
+import com.twosigma.beakerx.kernel.ImportPath;
+import com.twosigma.beakerx.kernel.PathToJar;
+import org.jetbrains.kotlin.cli.common.repl.ReplClassLoader;
+import org.jetbrains.kotlin.cli.jvm.repl.ReplInterpreter;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+
+import static com.twosigma.beakerx.kotlin.evaluator.ReplWithClassLoaderFactory.createParentClassLoader;
+import static com.twosigma.beakerx.kotlin.evaluator.ReplWithClassLoaderFactory.createReplWithKotlinParentClassLoader;
+import static com.twosigma.beakerx.kotlin.evaluator.ReplWithClassLoaderFactory.createReplWithReplClassLoader;
+import static com.twosigma.beakerx.kotlin.evaluator.ReplWithClassLoaderFactory.getImportString;
+import static java.util.Collections.singletonList;
 
 public class KotlinEvaluator extends BaseEvaluator {
 
-  private final String packageId;
   private ClasspathScanner cps;
-  private KotlinWorkerThread workerThread;
+  private ReplInterpreter repl;
+  private ReplClassLoader loader = null;
+  private BeakerxUrlClassLoader kotlinClassLoader;
 
-  public KotlinEvaluator(String id, String sId) {
-    this(id, sId, new BeakerCellExecutor("kotlin"));
+  public KotlinEvaluator(String id, String sId, EvaluatorParameters evaluatorParameters) {
+    this(id, sId, new BeakerCellExecutor("kotlin"), new TempFolderFactoryImpl(), evaluatorParameters);
   }
 
-  public KotlinEvaluator(String id, String sId, CellExecutor cellExecutor) {
-    super(id, sId, cellExecutor);
-    packageId = "com.twosigma.beaker.kotlin.bkr" + shellId.split("-")[0];
+  public KotlinEvaluator(String id, String sId, CellExecutor cellExecutor, TempFolderFactory tempFolderFactory, EvaluatorParameters evaluatorParameters) {
+    super(id, sId, cellExecutor, tempFolderFactory, evaluatorParameters);
     cps = new ClasspathScanner();
-    workerThread = new KotlinWorkerThread(this);
-    workerThread.start();
+    createRepl();
   }
 
   @Override
   protected void doResetEnvironment() {
     String cpp = createClasspath(classPath, outDir);
     cps = new ClasspathScanner(cpp);
-    workerThread.updateLoader();
-    workerThread.halt();
+    createRepl();
+    executorService.shutdown();
+    executorService = Executors.newSingleThreadExecutor();
+  }
+
+  private void createRepl() {
+    kotlinClassLoader = createParentClassLoader(this);
+    ReplWithClassLoaderFactory.ReplWithClassLoader replWithClassLoader = createReplWithKotlinParentClassLoader(this, kotlinClassLoader);
+    repl = replWithClassLoader.getRepl();
+    loader = replWithClassLoader.getLoader();
+  }
+
+  @Override
+  protected void addJarToClassLoader(PathToJar pathToJar) {
+    kotlinClassLoader.addJar(pathToJar);
+    repl = createReplWithReplClassLoader(this, loader);
+  }
+
+  @Override
+  protected void addImportToClassLoader(ImportPath anImport) {
+    repl.eval(getImportString(singletonList(anImport)));
+  }
+
+  @Override
+  public ClassLoader getClassLoader() {
+    return loader;
   }
 
   @Override
   public void exit() {
-    workerThread.doExit();
+    super.exit();
     cancelExecution();
-    workerThread.halt();
+    executorService.shutdown();
   }
 
   @Override
-  public void evaluate(SimpleEvaluationObject seo, String code) {
-    workerThread.add(new JobDescriptor(code, seo));
+  public TryResult evaluate(SimpleEvaluationObject seo, String code) {
+    return evaluate(seo, new KotlinWorkerThread(this, new JobDescriptor(code, seo)));
   }
 
   @Override
@@ -73,6 +111,7 @@ public class KotlinEvaluator extends BaseEvaluator {
     //TODO
     return new AutocompleteResult(ret, -1);
   }
+
   private String createClasspath(Classpath classPath, String outDir) {
     String cpp = "";
     for (String pt : classPath.getPathsAsStrings()) {
@@ -86,7 +125,7 @@ public class KotlinEvaluator extends BaseEvaluator {
     return cpp;
   }
 
-  public String getPackageId() {
-    return packageId;
+  public ReplInterpreter getRepl() {
+    return repl;
   }
 }

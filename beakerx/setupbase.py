@@ -22,25 +22,16 @@ within a Python package.
 """
 
 import os
-import shutil
-from glob import glob
 import functools
 import pipes
 import sys
-import site
-import json
+import shutil
 from subprocess import check_call
-
 from setuptools import Command
 from setuptools.command.develop import develop
-from setuptools.command.build_py import build_py
 from setuptools.command.sdist import sdist
 from setuptools.command.bdist_egg import bdist_egg
-from distutils.command.install_data import install_data
 from distutils import log
-
-from traitlets.config.manager import BaseJSONConfigManager
-from jupyter_core.paths import jupyter_config_dir
 
 try:
     from wheel.bdist_wheel import bdist_wheel
@@ -62,7 +53,7 @@ else:
 here = os.path.abspath(os.path.dirname(sys.argv[0]))
 root = os.path.abspath(os.path.join(here, os.pardir))
 kernel_path = os.path.join(root, 'kernel')
-site_packages = site.getsitepackages()[0]
+kernel_source = os.path.join(kernel_path, 'base','src', 'main', 'java')
 is_repo = os.path.exists(os.path.join(root, '.git'))
 node_modules = os.path.join(here, 'js', 'node_modules')
 node_modules_path = ':'.join([
@@ -80,7 +71,9 @@ else:
 # ---------------------------------------------------------------------------
 # Public Functions
 # ---------------------------------------------------------------------------
-
+def _classpath_for(kernel):
+    return pkg_resources.resource_filename(
+            'beakerx', os.path.join('kernel', kernel, 'lib', '*'))
 
 def get_version(path):
     version = {}
@@ -123,7 +116,7 @@ def update_package_data(distribution):
     build_py.finalize_options()
 
 
-def create_cmdclass(develop_wrappers=None, distribute_wrappers=None, install_wrappers=None, data_dirs=None):
+def create_cmdclass(develop_wrappers=None, distribute_wrappers=None, data_dirs=None):
     """Create a command class with the given optional wrappers.
     Parameters
     ----------
@@ -131,21 +124,16 @@ def create_cmdclass(develop_wrappers=None, distribute_wrappers=None, install_wra
         The cmdclass names to run before running other commands
     distribute_wrappers: list(str), optional
         The cmdclass names to run before running other commands
-    install_wrappers: list(str), optional
-        The cmdclass names to run before running other commands
     data_dirs: list(str), optional.
         The directories containing static data.
     """
     develop_wrappers = develop_wrappers or []
     distribute_wrappers = distribute_wrappers or []
-    install_wrappers = install_wrappers or []
     data_dirs = data_dirs or []
     develop_wrapper = functools.partial(wrap_command, develop_wrappers, data_dirs)
     distribute_wrapper = functools.partial(wrap_command, distribute_wrappers, data_dirs)
-    install_wrapper = functools.partial(wrap_command, install_wrappers, data_dirs)
     cmdclass = dict(
         develop=develop_wrapper(develop, strict=True),
-        install_data=install_wrapper(install_data, strict=is_repo),
         sdist=distribute_wrapper(sdist, strict=True),
         bdist_egg=bdist_egg if 'bdist_egg' in sys.argv else bdist_egg_disabled
     )
@@ -303,135 +291,6 @@ def install_node_modules(path=None, build_dir=None, source_dir=None, build_cmd='
 
     return Yarn
 
-
-def install_kernels(source_dir=os.path.join(here, 'beakerx', 'static', 'kernel'), target_dir=os.path.join(site_packages, 'beakerx', 'static', 'kernel')):
-    """Install all kernels in a directory.
-    
-    Parameters
-    ----------
-    target_dir: str
-        The path of a directory containing kernels.
-    """
-
-    class InstallKernels(BaseCommand):
-        description = 'Install all kernels in a directory'
-
-        def run(self):
-            try:
-                def install_kernel(source_kernelspec='', kernelspec_name=None):
-                    name = kernelspec_name if kernelspec_name else os.path.basename(source_kernelspec)
-                    classpath = (os.path.abspath(os.path.join(target_dir, 'base', 'lib', '*')) + (';' if sys.platform == 'win32' else ':') + os.path.abspath(os.path.join(target_dir, name, 'lib', '*'))).replace('\\', '/')
-                    src_spec_file = os.path.join(source_kernelspec, 'kernel.json')
-                    target_spec_file = src_spec_file + '.tmp'
-                    lines = []
-                    with open(src_spec_file) as infile:
-                        for line in infile:
-                            line = line.replace('__PATH__', classpath)
-                            lines.append(line)
-                    with open(target_spec_file, 'w') as outfile:
-                        for line in lines:
-                            outfile.write(line)
-                    os.remove(src_spec_file)
-                    os.rename(target_spec_file, src_spec_file)
-                    run(['jupyter', 'kernelspec', 'install', '--sys-prefix', '--replace', '--name', name, source_kernelspec])
-
-                for dir, subdirs, files in os.walk(source_dir):
-                    if 'kernel.json' in files:
-                        install_kernel(dir)
-                    else:
-                        continue
-            except Exception as e:
-                log.error(str(e))
-
-    return InstallKernels
-
-
-def update_kernelspec_class(prefix=None):
-    """Return a Command for updating kernelspec_class in jupyter_notebook_config.json.
-
-    Parameters
-    ----------
-    prefix: string
-        Base path of Python environment
-    """
-
-    class UpdateKernelspec(BaseCommand):
-        description = 'Update kernelspec_class in jupyter_notebook_config.json'
-        
-        user_options = [
-            ('disable', 'd', 'disable'),
-        ]
-
-        def initialize_options(self):
-            self.disable = False
-
-        def run(self):
-            CKSM = "beakerx.kernel_spec.BeakerXKernelSpec"
-            KSMC = "kernel_spec_class"
-            
-            def pretty(it): 
-                return json.dumps(it, indent=2)
-            
-            log.info("{}abling BeakerX server config...".format("Dis" if self.disable else "En"))
-
-            path = jupyter_config_dir()
-
-            if prefix is not None:
-                path = os.path.join(prefix, "etc", "jupyter")
-                if not os.path.exists(path):
-                    log.debug("Making directory {}...".format(path))
-                    os.makedirs(path)
-
-            cm = BaseJSONConfigManager(config_dir=path)
-            cfg = cm.get("jupyter_notebook_config")
-
-            log.debug("Existing config in {}...\n{}".format(path, pretty(cfg)))
-
-            nb_app = cfg.setdefault("KernelSpecManager", {})
-
-            if self.disable and nb_app.get(KSMC, None) == CKSM:
-                nb_app.pop(KSMC)
-            else:
-                nb_app.update({KSMC: CKSM})
-
-            log.debug("Writing config in {}...".format(path))
-
-            cm.set("jupyter_notebook_config", cfg)
-
-            cfg = cm.get("jupyter_notebook_config")
-
-            log.debug("Verifying config in {}...\n{}".format(path, pretty(cfg)))
-
-            if self.disable:
-                assert KSMC not in cfg["KernelSpecManager"]
-            else:
-                assert cfg["KernelSpecManager"][KSMC] == CKSM
-
-            log.info("{}abled BeakerX server config".format("Dis" if self.disable else "En"))
-
-    return UpdateKernelspec
-    
-
-def copy_files(src, dest):
-    """Copy files from one directory to another.
-
-    Parameters
-    ----------
-    src: Source directory
-    dest: Destination directory
-    """
-
-    class CopyFiles(BaseCommand):
-        description = 'Copy files from one directory to another.'
-
-        def run(self):
-            if os.path.exists(dest):
-                shutil.rmtree(dest)
-            shutil.copytree(src, dest)
-
-    return CopyFiles
-
-
 def run_gradle(path=kernel_path, cmd='build'):
     """Return a Command for running gradle scripts.
 
@@ -450,7 +309,6 @@ def run_gradle(path=kernel_path, cmd='build'):
             run([('' if sys.platform == 'win32' else './') + 'gradlew', '--no-daemon', cmd], cwd=path)
 
     return Gradle
-
 
 def ensure_targets(targets):
     """Return a Command that checks that certain files exist.
@@ -497,7 +355,7 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
     if sys.platform == "win32":
         # The current directory takes precedence on Windows.
         if os.curdir not in path:
-            os.path.insert(0, os.curdir)
+            os.sys.path.insert(0, os.curdir)
 
         # PATHEXT is necessary to check on Windows.
         pathext = os.environ.get("PATHEXT", "").split(os.pathsep)

@@ -16,124 +16,54 @@
 package com.twosigma.beakerx.groovy.evaluator;
 
 import com.twosigma.beakerx.NamespaceClient;
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.evaluator.JobDescriptor;
-import com.twosigma.beakerx.evaluator.WorkerThread;
-import groovy.lang.Binding;
-import groovy.lang.GroovyClassLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.twosigma.beakerx.evaluator.BaseEvaluator.INTERUPTED_MSG;
-import static com.twosigma.beakerx.groovy.evaluator.GroovyClassLoaderFactory.newEvaluator;
+import java.util.concurrent.Callable;
 
-class GroovyWorkerThread extends WorkerThread {
+class GroovyWorkerThread implements Callable<TryResult> {
 
   private static final Logger logger = LoggerFactory.getLogger(GroovyWorkerThread.class.getName());
-
+  private final JobDescriptor j;
   protected GroovyEvaluator groovyEvaluator;
-  private GroovyClassLoader groovyClassLoader;
-  private Binding scriptBinding = null;
-  private boolean exit;
-  private boolean updateLoader;
 
-  GroovyWorkerThread(GroovyEvaluator groovyEvaluator) {
-    super("groovy worker");
+  GroovyWorkerThread(GroovyEvaluator groovyEvaluator, JobDescriptor j) {
     this.groovyEvaluator = groovyEvaluator;
-    this.exit = false;
-    this.updateLoader = false;
+    this.j = j;
   }
 
-  /*
-   * This thread performs all the evaluation
-   */
-  public void run() {
-    JobDescriptor j = null;
+  @Override
+  public TryResult call() throws Exception {
     NamespaceClient nc = null;
-
-    while (!exit) {
-      try {
-        // wait for work
-        syncObject.acquire();
-
-        // check if we must create or update class loader
-        if (updateLoader) {
-          if (groovyClassLoader != null) {
-            try {
-              groovyClassLoader.close();
-            } catch (Exception ex) {
-            }
-          }
-          groovyClassLoader = null;
-          scriptBinding = null;
-        }
-
-        // get next job descriptor
-        j = jobQueue.poll();
-        if (j == null)
-          continue;
-
-        if (groovyClassLoader == null) {
-          updateLoader = false;
-          //reload classloader
-          groovyClassLoader = newEvaluator(groovyEvaluator.getImports(), groovyEvaluator.getClasspath(), groovyEvaluator.getOutDir());
-          scriptBinding = new Binding();
-        }
-
-        //if(loader!=null)
-        //  loader.resetDynamicLoader();
-
-        if (!GroovyEvaluator.LOCAL_DEV) {
-          nc = NamespaceClient.getBeaker(groovyEvaluator.getSessionId());
-          nc.setOutputObj(j.outputObject);
-        }
-
-        j.outputObject.started();
-
-        String code = j.codeToBeExecuted;
-
-        if (!groovyEvaluator.executeTask(new GroovyCodeRunner(this, code, j.outputObject))) {
-          j.outputObject.error(INTERUPTED_MSG);
-        }
-
-        if (nc != null) {
-          nc.setOutputObj(null);
-          nc = null;
-        }
-      } catch (Throwable e) {
-        if (e instanceof GroovyNotFoundException) {
-          logger.warn(e.getLocalizedMessage());
-          if (j != null) {
-            j.outputObject.error(e.getLocalizedMessage());
-          }
-        } else {
-          e.printStackTrace();
-        }
-      } finally {
-        if (nc != null) {
-          nc.setOutputObj(null);
-          nc = null;
-        }
-        if (j != null && j.outputObject != null) {
-          j.outputObject.executeCodeCallback();
-        }
+    TryResult r;
+    try {
+      if (!GroovyEvaluator.LOCAL_DEV) {
+        nc = NamespaceClient.getBeaker(groovyEvaluator.getSessionId());
+        nc.setOutputObj(j.outputObject);
+      }
+      j.outputObject.started();
+      String code = j.codeToBeExecuted;
+      r = groovyEvaluator.executeTask(new GroovyCodeRunner(groovyEvaluator, code, j.outputObject));
+      if (nc != null) {
+        nc.setOutputObj(null);
+        nc = null;
+      }
+    } catch (Throwable e) {
+      if (e instanceof GroovyNotFoundException) {
+        logger.warn(e.getLocalizedMessage());
+        r = TryResult.createError(e.getLocalizedMessage());
+      } else {
+        e.printStackTrace();
+        r = TryResult.createError(e.getLocalizedMessage());
+      }
+    } finally {
+      if (nc != null) {
+        nc.setOutputObj(null);
+        nc = null;
       }
     }
-    NamespaceClient.delBeaker(groovyEvaluator.getSessionId());
-  }
-
-  void updateLoader() {
-    this.updateLoader = true;
-  }
-
-  void doExit() {
-    this.exit = true;
-  }
-
-  GroovyClassLoader getGroovyClassLoader() {
-    return groovyClassLoader;
-  }
-
-  Binding getScriptBinding() {
-    return scriptBinding;
+    return r;
   }
 }

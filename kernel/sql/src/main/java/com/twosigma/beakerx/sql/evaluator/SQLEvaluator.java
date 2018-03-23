@@ -17,22 +17,27 @@ package com.twosigma.beakerx.sql.evaluator;
 
 
 import com.twosigma.beakerx.NamespaceClient;
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.autocomplete.AutocompleteResult;
 import com.twosigma.beakerx.autocomplete.ClasspathScanner;
 import com.twosigma.beakerx.evaluator.BaseEvaluator;
 import com.twosigma.beakerx.evaluator.JobDescriptor;
+import com.twosigma.beakerx.evaluator.TempFolderFactory;
+import com.twosigma.beakerx.evaluator.TempFolderFactoryImpl;
+import com.twosigma.beakerx.jvm.classloader.DynamicClassLoaderSimple;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.jvm.threads.BeakerCellExecutor;
 import com.twosigma.beakerx.jvm.threads.CellExecutor;
+import com.twosigma.beakerx.kernel.Classpath;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
+import com.twosigma.beakerx.kernel.ImportPath;
+import com.twosigma.beakerx.kernel.PathToJar;
 import com.twosigma.beakerx.sql.ConnectionStringBean;
 import com.twosigma.beakerx.sql.ConnectionStringHolder;
 import com.twosigma.beakerx.sql.JDBCClient;
 import com.twosigma.beakerx.sql.QueryExecutor;
 import com.twosigma.beakerx.sql.ReadVariableException;
 import com.twosigma.beakerx.sql.autocomplete.SQLAutocomplete;
-import com.twosigma.beakerx.kernel.Classpath;
-import com.twosigma.beakerx.kernel.KernelParameters;
-import com.twosigma.beakerx.kernel.PathToJar;
 import com.twosigma.beakerx.sql.kernel.SQLKernelParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +45,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -47,6 +53,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Scanner;
+import java.util.concurrent.Executors;
 
 public class SQLEvaluator extends BaseEvaluator {
 
@@ -58,32 +65,39 @@ public class SQLEvaluator extends BaseEvaluator {
   private ClasspathScanner cps;
   private SQLAutocomplete sac;
   private final QueryExecutor queryExecutor;
-  private final JDBCClient jdbcClient;
-  private SQLWorkerThread workerThread;
+  private JDBCClient jdbcClient;
+  private DynamicClassLoaderSimple loader;
 
-  public SQLEvaluator(String id, String sId) {
-    this(id, sId, new BeakerCellExecutor("sql"));
+  public SQLEvaluator(String id, String sId, EvaluatorParameters evaluatorParameters) {
+    this(id, sId, new BeakerCellExecutor("sql"), new TempFolderFactoryImpl(), evaluatorParameters);
   }
 
-  public SQLEvaluator(String id, String sId, CellExecutor cellExecutor) {
-    super(id, sId, cellExecutor);
+  public SQLEvaluator(String id, String sId, CellExecutor cellExecutor, TempFolderFactory tempFolderFactory, EvaluatorParameters evaluatorParameters) {
+    super(id, sId, cellExecutor, tempFolderFactory, evaluatorParameters);
     packageId = "com.twosigma.beaker.sql.bkr" + shellId.split("-")[0];
-    jdbcClient = new JDBCClient();
     cps = new ClasspathScanner();
     sac = createSqlAutocomplete(cps);
+    jdbcClient = new JDBCClient();
+    jdbcClient.loadDrivers(classPath.getPathsAsStrings());
     queryExecutor = new QueryExecutor(jdbcClient);
-    workerThread= new SQLWorkerThread(this);
-    workerThread.start();
+    loader = reloadClassLoader();
+    executorService = Executors.newSingleThreadExecutor();
   }
 
   @Override
-  public void evaluate(SimpleEvaluationObject seo, String code) {
-    workerThread.add(new JobDescriptor(code, seo));
+  public ClassLoader getClassLoader() {
+    return loader;
+  }
+
+  @Override
+  public TryResult evaluate(SimpleEvaluationObject seo, String code) {
+    return evaluate(seo, new SQLWorkerThread(this, new JobDescriptor(code, seo)));
   }
 
   @Override
   public void exit() {
-    workerThread.doExit();
+    super.exit();
+    executorService.shutdown();
     cancelExecution();
   }
 
@@ -104,11 +118,22 @@ public class SQLEvaluator extends BaseEvaluator {
     killAllThreads();
     jdbcClient.loadDrivers(classPath.getPathsAsStrings());
     sac = createSqlAutocomplete(cps);
+    loader = reloadClassLoader();
+  }
+
+  @Override
+  protected void addJarToClassLoader(PathToJar pathToJar) {
+    loader.addJars(Arrays.asList(pathToJar.getPath()));
+  }
+
+  @Override
+  protected void addImportToClassLoader(ImportPath anImport) {
+
   }
 
   @Override
   protected void doResetEnvironment() {
-    workerThread.halt();
+
   }
 
   private SQLAutocomplete createSqlAutocomplete(ClasspathScanner c) {
@@ -121,7 +146,17 @@ public class SQLEvaluator extends BaseEvaluator {
   }
 
   @Override
-  protected void configure(KernelParameters kernelParameters) {
+  protected void init(EvaluatorParameters evaluatorParameters) {
+    // no configuration, we have to call setShellOptions witt evaluatorParameters
+  }
+
+  @Override
+  public void setShellOptions(final EvaluatorParameters evaluatorParameters) {
+    configureSqlEvaluator(evaluatorParameters);
+    resetEnvironment();
+  }
+
+  protected void configureSqlEvaluator(EvaluatorParameters kernelParameters) {
     SQLKernelParameters params = new SQLKernelParameters(kernelParameters);
     Optional<Collection<String>> cp = params.getClassPath();
 
@@ -131,7 +166,7 @@ public class SQLEvaluator extends BaseEvaluator {
       } else {
         for (String line : cp.get()) {
           if (!line.trim().isEmpty()) {
-            addJar(new PathToJar(line));
+            classPath.add(new PathToJar(line));
           }
         }
       }
@@ -209,4 +244,12 @@ public class SQLEvaluator extends BaseEvaluator {
   public Object executeQuery(String expression, NamespaceClient namespaceClient, ConnectionStringHolder defaultConnectionString, Map<String, ConnectionStringHolder> namedConnectionString) throws SQLException, IOException, ReadVariableException {
     return queryExecutor.executeQuery(expression, namespaceClient, defaultConnectionString, namedConnectionString);
   }
+
+  private DynamicClassLoaderSimple reloadClassLoader() {
+    DynamicClassLoaderSimple parent = new DynamicClassLoaderSimple(ClassLoader.getSystemClassLoader());
+    parent.addJars(getClasspath().getPathsAsStrings());
+    parent.addDynamicDir(getOutDir());
+    return parent;
+  }
+
 }

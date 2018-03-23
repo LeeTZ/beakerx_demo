@@ -18,17 +18,18 @@ package com.twosigma.beakerx.chart.xychart;
 
 import com.twosigma.beakerx.chart.ChartDetails;
 import com.twosigma.beakerx.chart.ChartToJson;
+import com.twosigma.beakerx.chart.actions.CombinedPlotActionObject;
+import com.twosigma.beakerx.chart.actions.GraphicsActionObject;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static com.twosigma.beakerx.widgets.chart.BeakerxPlot.MODEL_NAME_VALUE;
-import static com.twosigma.beakerx.widgets.chart.BeakerxPlot.VIEW_NAME_VALUE;
+import static com.twosigma.beakerx.widget.BeakerxPlot.MODEL_NAME_VALUE;
+import static com.twosigma.beakerx.widget.BeakerxPlot.VIEW_NAME_VALUE;
 
 /**
  * CombinedPlot
- *
  */
 public class CombinedPlot extends ChartDetails {
   private int initWidth = 640;
@@ -39,8 +40,9 @@ public class CombinedPlot extends ChartDetails {
   private List<Integer> weights = new ArrayList<>();
   private boolean xTickLabelsVisible = true;
   private boolean yTickLabelsVisible = true;
+  private boolean autoZoom = false;
 
-  public CombinedPlot(){
+  public CombinedPlot() {
     super();
     openComm();
   }
@@ -96,6 +98,10 @@ public class CombinedPlot extends ChartDetails {
     return this.xLabel;
   }
 
+  public String getxLabel() {
+    return getXLabel();
+  }
+
   public CombinedPlot add(XYChart plot, int weight) {
     this.subplots.add(plot);
     this.weights.add(weight);
@@ -119,7 +125,7 @@ public class CombinedPlot extends ChartDetails {
       this.add(plot, weight);
     } else {
       throw new IllegalArgumentException(
-          "leftShift takes XYChart or List that hold a XYChart and weight");
+              "leftShift takes XYChart or List that hold a XYChart and weight");
     }
     return this;
   }
@@ -136,22 +142,55 @@ public class CombinedPlot extends ChartDetails {
     return yTickLabelsVisible;
   }
 
+  public boolean isYTickLabelsVisible() {
+    return isyTickLabelsVisible();
+  }
+
   public void setyTickLabelsVisible(boolean yTickLabelsVisible) {
     this.yTickLabelsVisible = yTickLabelsVisible;
+  }
+
+  public void setYTickLabelsVisible(boolean yTickLabelsVisible) {
+    setyTickLabelsVisible(yTickLabelsVisible);
   }
 
   public boolean isxTickLabelsVisible() {
     return xTickLabelsVisible;
   }
 
+  public boolean isXTickLabelsVisible() {
+    return isxTickLabelsVisible();
+  }
+
   public void setxTickLabelsVisible(boolean xTickLabelsVisible) {
     this.xTickLabelsVisible = xTickLabelsVisible;
+  }
+
+  public void setXTickLabelsVisible(boolean xTickLabelsVisible) {
+    setxTickLabelsVisible(xTickLabelsVisible);
+  }
+
+  public boolean getAutoZoom() {
+    return this.autoZoom;
+  }
+
+  public CombinedPlot setAutoZoom(boolean autoZoom) {
+    this.autoZoom = autoZoom;
+    return this;
+  }
+
+  @Override
+  protected void updateDetails(GraphicsActionObject info) {
+    CombinedPlotActionObject combinedPlotActionObject = (CombinedPlotActionObject) info;
+    XYChart xyChart = getSubplots().get(combinedPlotActionObject.getSubplotIndex());
+    xyChart.setDetails(info);
   }
 
   @Override
   protected Map serializeToJsonObject() {
     return ChartToJson.toJson(this);
   }
+
   @Override
   protected Map serializeToJsonObject(Object item) {
     return ChartToJson.toJson(item);

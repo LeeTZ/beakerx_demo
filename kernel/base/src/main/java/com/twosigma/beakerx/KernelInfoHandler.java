@@ -32,6 +32,8 @@ import org.slf4j.LoggerFactory;
 public abstract class KernelInfoHandler extends KernelHandler<Message> {
 
   private final static Logger logger = LoggerFactory.getLogger(KernelInfoHandler.class);
+  public static final String PROTOCOL_VERSION = "protocol_version";
+  public static final String PROTOCOL_VERSION_NUMBER = "5.1";
 
   public KernelInfoHandler(KernelFunctionality kernel) {
     super(kernel);
@@ -60,7 +62,7 @@ public abstract class KernelInfoHandler extends KernelHandler<Message> {
   private HashMap<String, Serializable> content() {
     HashMap<String, Serializable> map = new HashMap<>();
     map.put("implementation_version", BeakerImplementationInfo.IMPLEMENTATION_VERSION);
-    map.put("protocol_version", "5.0");
+    map.put(PROTOCOL_VERSION, PROTOCOL_VERSION_NUMBER);
     map.put("language_info", languageInfo());
     map.put("help_links", getHelpLinks());
     map.put("beakerx", true);
@@ -69,11 +71,12 @@ public abstract class KernelInfoHandler extends KernelHandler<Message> {
   }
 
   private ArrayList<HelpLink> getHelpLinks() {
-    HelpLink beakerXHome = new HelpLink("BeakerX Home", "https://github.com/twosigma/beakerx");
+    HelpLink beakerXHome = new HelpLink("BeakerX Home", "http://BeakerX.com");
     HelpLink fileAnIssue = new HelpLink("File an Issue", "https://github.com/twosigma/beakerx/issues/new");
     HelpLink twoSigmaOpenSource = new HelpLink("Two Sigma Open Source", "http://opensource.twosigma.com/");
+    HelpLink javadoc = new HelpLink("BeakerX JavaDoc", "javadoc/index.html");
 
-    return Lists.newArrayList(beakerXHome, fileAnIssue, twoSigmaOpenSource);
+    return Lists.newArrayList(beakerXHome, fileAnIssue, twoSigmaOpenSource, javadoc);
   }
 
   protected abstract HashMap<String, Serializable> doLanguageInfo(HashMap<String, Serializable> languageInfo);

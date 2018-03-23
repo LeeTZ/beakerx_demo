@@ -20,9 +20,11 @@ import static com.twosigma.beakerx.kernel.Utils.uuid;
 
 import com.twosigma.beakerx.evaluator.Evaluator;
 import com.twosigma.beakerx.handler.KernelHandler;
+import com.twosigma.beakerx.kernel.CacheFolderFactory;
+import com.twosigma.beakerx.kernel.CloseKernelAction;
 import com.twosigma.beakerx.kernel.Kernel;
 import com.twosigma.beakerx.kernel.KernelConfigurationFile;
-import com.twosigma.beakerx.kernel.KernelParameters;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
 import com.twosigma.beakerx.kernel.KernelRunner;
 import com.twosigma.beakerx.kernel.KernelSocketsFactory;
 import com.twosigma.beakerx.kernel.KernelSocketsFactoryImpl;
@@ -31,15 +33,19 @@ import com.twosigma.beakerx.kotlin.comm.KotlinCommOpenHandler;
 import com.twosigma.beakerx.kotlin.evaluator.KotlinEvaluator;
 import com.twosigma.beakerx.kotlin.handler.KotlinKernelInfoHandler;
 import com.twosigma.beakerx.message.Message;
+
 import java.io.IOException;
 import java.util.HashMap;
 
 
 public class Kotlin extends Kernel {
 
-  public Kotlin(final String id, final Evaluator evaluator,
-      KernelSocketsFactory kernelSocketsFactory) {
+  private Kotlin(final String id, final Evaluator evaluator, KernelSocketsFactory kernelSocketsFactory) {
     super(id, evaluator, kernelSocketsFactory);
+  }
+
+  public Kotlin(final String id, final Evaluator evaluator, KernelSocketsFactory kernelSocketsFactory, CloseKernelAction closeKernelAction, CacheFolderFactory cacheFolderFactory) {
+    super(id, evaluator, kernelSocketsFactory, closeKernelAction, cacheFolderFactory);
   }
 
   @Override
@@ -52,19 +58,18 @@ public class Kotlin extends Kernel {
     return new KotlinKernelInfoHandler(kernel);
   }
 
-  @Override
-  public KernelParameters getKernelParameters() {
+  public static EvaluatorParameters getKernelParameters() {
     HashMap<String, Object> kernelParameters = new HashMap<>();
     kernelParameters.put(IMPORTS, new KotlinDefaultVariables().getImports());
-    return new KernelParameters(kernelParameters);
+    return new EvaluatorParameters(kernelParameters);
   }
 
   public static void main(final String[] args) throws InterruptedException, IOException {
     KernelRunner.run(() -> {
       String id = uuid();
-      KotlinEvaluator e = new KotlinEvaluator(id, id);
+      KotlinEvaluator e = new KotlinEvaluator(id, id, getKernelParameters());
       KernelSocketsFactoryImpl kernelSocketsFactory = new KernelSocketsFactoryImpl(
-          new KernelConfigurationFile(args));
+              new KernelConfigurationFile(args));
       return new Kotlin(id, e, kernelSocketsFactory);
     });
   }

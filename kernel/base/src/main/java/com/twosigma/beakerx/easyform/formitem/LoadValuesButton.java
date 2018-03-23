@@ -17,7 +17,7 @@
 package com.twosigma.beakerx.easyform.formitem;
 
 import com.twosigma.beakerx.easyform.EasyFormComponent;
-import com.twosigma.beakerx.widgets.ValueWidget;
+import com.twosigma.beakerx.widget.ValueWidget;
 
 public class LoadValuesButton extends EasyFormComponent {
 
@@ -52,7 +52,7 @@ public class LoadValuesButton extends EasyFormComponent {
   }
 
   @Override
-  public void setValue(String value) {
+  public void setValue(Object value) {
     throw new RuntimeException("Not implemented yet.");
   }
 }

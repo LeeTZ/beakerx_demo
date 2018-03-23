@@ -16,27 +16,34 @@
 package com.twosigma.beakerx.kernel;
 
 import static com.twosigma.beakerx.kernel.KernelSignalHandler.addSigIntHandler;
+import static java.util.Collections.singletonList;
 
-import com.google.common.collect.Lists;
+import com.twosigma.beakerx.BeakerxDefaultDisplayers;
+import com.twosigma.beakerx.DisplayerDataMapper;
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.autocomplete.AutocompleteResult;
 import com.twosigma.beakerx.evaluator.Evaluator;
 import com.twosigma.beakerx.evaluator.EvaluatorManager;
 import com.twosigma.beakerx.handler.Handler;
 import com.twosigma.beakerx.handler.KernelHandler;
+import com.twosigma.beakerx.inspect.InspectResult;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.kernel.comm.Comm;
-import com.twosigma.beakerx.kernel.commands.MagicCommand;
-import com.twosigma.beakerx.kernel.commands.item.MagicCommandType;
 import com.twosigma.beakerx.kernel.handler.CommOpenHandler;
+import com.twosigma.beakerx.kernel.magic.command.MagicCommandTypesFactory;
+import com.twosigma.beakerx.kernel.magic.command.MagicCommandType;
 import com.twosigma.beakerx.kernel.msg.JupyterMessages;
 import com.twosigma.beakerx.kernel.msg.MessageCreator;
 import com.twosigma.beakerx.kernel.threads.ExecutionResultSender;
 import com.twosigma.beakerx.message.Message;
+
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +53,7 @@ public abstract class Kernel implements KernelFunctionality {
 
   public static String OS = System.getProperty("os.name").toLowerCase();
   public static boolean showNullExecutionResult = true;
+  private final CloseKernelAction closeKernelAction;
 
   private String sessionId;
   private KernelSocketsFactory kernelSocketsFactory;
@@ -54,32 +62,33 @@ public abstract class Kernel implements KernelFunctionality {
   private ExecutionResultSender executionResultSender;
   private EvaluatorManager evaluatorManager;
   private KernelSockets kernelSockets;
-  private MessageCreator messageCreator;
-  private MagicCommand magicCommand;
+  private List<MagicCommandType> magicCommandTypes;
+  private CacheFolderFactory cacheFolderFactory;
 
   public Kernel(final String sessionId, final Evaluator evaluator,
                 final KernelSocketsFactory kernelSocketsFactory) {
-    this.messageCreator = new MessageCreator(this);
+    this(sessionId, evaluator, kernelSocketsFactory, () -> System.exit(0), new EnvCacheFolderFactory());
+  }
+
+  protected Kernel(final String sessionId, final Evaluator evaluator, final KernelSocketsFactory kernelSocketsFactory,
+                   CloseKernelAction closeKernelAction, CacheFolderFactory cacheFolderFactory) {
     this.sessionId = sessionId;
+    this.cacheFolderFactory = cacheFolderFactory;
     this.kernelSocketsFactory = kernelSocketsFactory;
+    this.closeKernelAction = closeKernelAction;
     this.commMap = new ConcurrentHashMap<>();
     this.executionResultSender = new ExecutionResultSender(this);
     this.evaluatorManager = new EvaluatorManager(this, evaluator);
     this.handlers = new KernelHandlers(this, getCommOpenHandler(this), getKernelInfoHandler(this));
-    this.magicCommand = handlers.getExecuteRequestHandler().getMagicCommand();
+    createMagicCommands();
+    DisplayerDataMapper.init();
     configureSignalHandler();
-    initKernel(getKernelParameters());
-    configureJvmRepr();
+    initJvmRepr();
   }
-
-  public abstract KernelParameters getKernelParameters();
 
   public abstract CommOpenHandler getCommOpenHandler(Kernel kernel);
 
   public abstract KernelHandler<Message> getKernelInfoHandler(Kernel kernel);
-
-  protected void configureJvmRepr(){
-  }
 
   @Override
   public void run() {
@@ -92,15 +101,16 @@ public abstract class Kernel implements KernelFunctionality {
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     } finally {
-      exit();
+      doExit();
+      logger.debug("Jupyter kernel shoutdown.");
     }
-    logger.debug("Jupyter kernel shoutdown.");
   }
 
-  private void exit() {
+  private void doExit() {
     this.evaluatorManager.exit();
     this.handlers.exit();
     this.executionResultSender.exit();
+    this.closeKernelAction.close();
   }
 
   private void closeComms() {
@@ -111,12 +121,8 @@ public abstract class Kernel implements KernelFunctionality {
     return (OS.indexOf("win") >= 0);
   }
 
-  public synchronized void setShellOptions(final KernelParameters kernelParameters) {
+  public synchronized void setShellOptions(final EvaluatorParameters kernelParameters) {
     evaluatorManager.setShellOptions(kernelParameters);
-  }
-
-  public void initKernel(final KernelParameters kernelParameters) {
-    evaluatorManager.initKernel(kernelParameters);
   }
 
   @Override
@@ -148,7 +154,7 @@ public abstract class Kernel implements KernelFunctionality {
     }
   }
 
-  public synchronized void publish(Message message) {
+  public synchronized void publish(List<Message> message) {
     this.kernelSockets.publish(message);
   }
 
@@ -175,9 +181,8 @@ public abstract class Kernel implements KernelFunctionality {
   }
 
   @Override
-  public SimpleEvaluationObject executeCode(String code, Message message, int executionCount,
-                                            ExecuteCodeCallback executeCodeCallback) {
-    return this.evaluatorManager.executeCode(code, message, executionCount, executeCodeCallback);
+  public TryResult executeCode(String code, SimpleEvaluationObject seo) {
+    return this.evaluatorManager.executeCode(code, seo);
   }
 
   @Override
@@ -186,8 +191,8 @@ public abstract class Kernel implements KernelFunctionality {
   }
 
   @Override
-  public boolean addJarToClasspath(PathToJar path) {
-    return this.evaluatorManager.addJarToClasspath(path);
+  public InspectResult inspect(String code, int cursorPos) {
+    return this.evaluatorManager.inspect(code, cursorPos);
   }
 
   @Override
@@ -197,12 +202,12 @@ public abstract class Kernel implements KernelFunctionality {
 
   @Override
   public void sendBusyMessage(Message message) {
-    publish(this.messageCreator.createBusyMessage(message));
+    publish(singletonList(MessageCreator.createBusyMessage(message)));
   }
 
   @Override
   public void sendIdleMessage(Message message) {
-    publish(this.messageCreator.createIdleMessage(message));
+    publish(singletonList(MessageCreator.createIdleMessage(message)));
   }
 
   @Override
@@ -216,8 +221,8 @@ public abstract class Kernel implements KernelFunctionality {
   }
 
   @Override
-  public void addImport(ImportPath anImport) {
-    this.evaluatorManager.addImport(anImport);
+  public AddImportStatus addImport(ImportPath anImport) {
+    return this.evaluatorManager.addImport(anImport);
   }
 
   @Override
@@ -225,23 +230,44 @@ public abstract class Kernel implements KernelFunctionality {
     this.evaluatorManager.removeImport(anImport);
   }
 
-  public MagicCommand getMagicCommand() {
-    return magicCommand;
+  @Override
+  public Path getTempFolder() {
+    return evaluatorManager.getTempFolder();
   }
 
   @Override
-  public List<MagicCommandType> getMagicCommands() {
-    return Lists.newArrayList(
-        new MagicCommandType(MagicCommand.JAVASCRIPT, "", magicCommand.javascript()),
-        new MagicCommandType(MagicCommand.HTML, "", magicCommand.html()),
-        new MagicCommandType(MagicCommand.BASH, "", magicCommand.bash()),
-        new MagicCommandType(MagicCommand.LSMAGIC, "", magicCommand.lsmagic()),
-        new MagicCommandType(MagicCommand.CLASSPATH_ADD_JAR, "<jar path>", magicCommand.classpathAddJar()),
-        new MagicCommandType(MagicCommand.CLASSPATH_REMOVE, "<jar path>", magicCommand.classpathRemove()),
-        new MagicCommandType(MagicCommand.CLASSPATH_SHOW, "", magicCommand.classpathShow()),
-        new MagicCommandType(MagicCommand.ADD_STATIC_IMPORT, "<classpath>", magicCommand.addStaticImport()),
-        new MagicCommandType(MagicCommand.ADD_IMPORT, "<classpath>", magicCommand.addImport()),
-        new MagicCommandType(MagicCommand.UNIMPORT, "<classpath>", magicCommand.unimport())
-    );
+  public Path getCacheFolder() {
+    return cacheFolderFactory.getCache();
+  }
+
+  @Override
+  public Class<?> loadClass(String clazzName) throws ClassNotFoundException {
+    return evaluatorManager.loadClass(clazzName);
+  }
+
+  @Override
+  public List<MagicCommandType> getMagicCommandTypes() {
+    return new ArrayList<>(magicCommandTypes);
+  }
+
+  private void createMagicCommands() {
+    this.magicCommandTypes = MagicCommandTypesFactory.createDefaults(this);
+    configureMagicCommands();
+  }
+
+  protected void configureMagicCommands() {
+  }
+
+  @Override
+  public void registerMagicCommandType(MagicCommandType magicCommandType) {
+    this.magicCommandTypes.add(magicCommandType);
+  }
+
+  private void initJvmRepr() {
+    BeakerxDefaultDisplayers.registerDefaults();
+    configureJvmRepr();
+  }
+
+  protected void configureJvmRepr() {
   }
 }

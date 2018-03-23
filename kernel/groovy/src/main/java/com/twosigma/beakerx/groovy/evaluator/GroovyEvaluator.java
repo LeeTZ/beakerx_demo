@@ -15,22 +15,34 @@
  */
 package com.twosigma.beakerx.groovy.evaluator;
 
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.autocomplete.AutocompleteResult;
 import com.twosigma.beakerx.evaluator.BaseEvaluator;
 import com.twosigma.beakerx.evaluator.JobDescriptor;
+import com.twosigma.beakerx.evaluator.TempFolderFactory;
+import com.twosigma.beakerx.evaluator.TempFolderFactoryImpl;
 import com.twosigma.beakerx.groovy.autocomplete.GroovyAutocomplete;
 import com.twosigma.beakerx.groovy.autocomplete.GroovyClasspathScanner;
+import com.twosigma.beakerx.inspect.Inspect;
+import com.twosigma.beakerx.jvm.classloader.BeakerxUrlClassLoader;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.jvm.threads.BeakerCellExecutor;
 import com.twosigma.beakerx.jvm.threads.CellExecutor;
 import com.twosigma.beakerx.kernel.Classpath;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
 import com.twosigma.beakerx.kernel.ImportPath;
-import com.twosigma.beakerx.kernel.Imports;
 import com.twosigma.beakerx.kernel.PathToJar;
+import groovy.lang.Binding;
+import groovy.lang.GroovyClassLoader;
+import org.codehaus.groovy.control.customizers.ImportCustomizer;
 
 import java.io.File;
+import java.util.concurrent.Executors;
 
 import static com.twosigma.beakerx.groovy.evaluator.EnvVariablesFilter.envVariablesFilter;
+import static com.twosigma.beakerx.groovy.evaluator.GroovyClassLoaderFactory.addImportPathToImportCustomizer;
+import static com.twosigma.beakerx.groovy.evaluator.GroovyClassLoaderFactory.newEvaluator;
+import static com.twosigma.beakerx.groovy.evaluator.GroovyClassLoaderFactory.newParentClassLoader;
 
 
 public class GroovyEvaluator extends BaseEvaluator {
@@ -39,62 +51,63 @@ public class GroovyEvaluator extends BaseEvaluator {
 
   private GroovyClasspathScanner cps;
   private GroovyAutocomplete gac;
-  private GroovyWorkerThread worker = null;
+  private GroovyClassLoader groovyClassLoader;
+  private Binding scriptBinding = null;
+  private ImportCustomizer icz;
+  private BeakerxUrlClassLoader beakerxUrlClassLoader;
 
-  public GroovyEvaluator(String id, String sId) {
-    this(id, sId, new BeakerCellExecutor("groovy"));
+  public GroovyEvaluator(String id, String sId, EvaluatorParameters evaluatorParameters) {
+    this(id, sId, new BeakerCellExecutor("groovy"), new TempFolderFactoryImpl(), evaluatorParameters);
   }
 
-  public GroovyEvaluator(String id, String sId, CellExecutor cellExecutor) {
-    super(id, sId, cellExecutor);
+  public GroovyEvaluator(String id, String sId, CellExecutor cellExecutor, TempFolderFactory tempFolderFactory, EvaluatorParameters evaluatorParameters) {
+    super(id, sId, cellExecutor, tempFolderFactory, evaluatorParameters);
     cps = new GroovyClasspathScanner();
     gac = createGroovyAutocomplete(cps);
     outDir = envVariablesFilter(outDir, System.getenv());
-    worker = new GroovyWorkerThread(this);
-    worker.start();
+    reloadClassloader();
   }
 
   @Override
-  public void evaluate(SimpleEvaluationObject seo, String code) {
-    worker.add(new JobDescriptor(code, seo));
+  public TryResult evaluate(SimpleEvaluationObject seo, String code) {
+    return evaluate(seo, new GroovyWorkerThread(this, new JobDescriptor(code, seo)));
   }
 
   @Override
   public AutocompleteResult autocomplete(String code, int caretPosition) {
-    return gac.doAutocomplete(code, caretPosition, worker.getGroovyClassLoader());
+    return gac.doAutocomplete(code, caretPosition, groovyClassLoader, imports);
   }
 
   @Override
   protected void doResetEnvironment() {
     String cpp = createClasspath(classPath);
     cps = new GroovyClasspathScanner(cpp);
-    gac = createAutocomplete(cps, imports);
-    worker.updateLoader();
-    worker.halt();
+    gac = createGroovyAutocomplete(cps);
+    reloadClassloader();
+    executorService.shutdown();
+    executorService = Executors.newSingleThreadExecutor();
   }
 
   @Override
   public void exit() {
-    worker.doExit();
+    super.exit();
     cancelExecution();
-    worker.halt();
+    executorService.shutdown();
+    executorService = Executors.newSingleThreadExecutor();
   }
 
   @Override
-  protected boolean addJar(PathToJar path) {
-    return classPath.add(new PathToJar(envVariablesFilter(path.getPath(), System.getenv())));
+  protected void addJarToClassLoader(PathToJar pathToJar) {
+    this.beakerxUrlClassLoader.addJar(pathToJar);
+  }
+
+  @Override
+  protected void addImportToClassLoader(ImportPath anImport) {
+    addImportPathToImportCustomizer(icz, anImport);
   }
 
   private GroovyAutocomplete createGroovyAutocomplete(GroovyClasspathScanner c) {
     return new GroovyAutocomplete(c);
-  }
-
-  private GroovyAutocomplete createAutocomplete(GroovyClasspathScanner cps, Imports imports) {
-    GroovyAutocomplete gac = createGroovyAutocomplete(cps);
-    for (ImportPath st : imports.getImportPaths()) {
-      gac.addImport(st.asString());
-    }
-    return gac;
   }
 
   private String createClasspath(Classpath classPath) {
@@ -109,5 +122,23 @@ public class GroovyEvaluator extends BaseEvaluator {
     return cpp;
   }
 
+  @Override
+  public ClassLoader getClassLoader() {
+    return groovyClassLoader;
+  }
 
+  private void reloadClassloader() {
+    this.beakerxUrlClassLoader = newParentClassLoader(getClasspath());
+    this.icz = new ImportCustomizer();
+    this.groovyClassLoader = newEvaluator(getImports(), getClasspath(), getOutDir(), icz, beakerxUrlClassLoader);
+    this.scriptBinding = new Binding();
+  }
+
+  public GroovyClassLoader getGroovyClassLoader() {
+    return groovyClassLoader;
+  }
+
+  public Binding getScriptBinding() {
+    return scriptBinding;
+  }
 }

@@ -15,12 +15,14 @@
  */
 package com.twosigma.beakerx.kernel;
 
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.autocomplete.AutocompleteResult;
-import com.twosigma.beakerx.kernel.comm.Comm;
-import com.twosigma.beakerx.kernel.commands.item.MagicCommandType;
-import com.twosigma.beakerx.kernel.msg.JupyterMessages;
-import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.handler.Handler;
+import com.twosigma.beakerx.inspect.InspectResult;
+import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
+import com.twosigma.beakerx.kernel.comm.Comm;
+import com.twosigma.beakerx.kernel.magic.command.MagicCommandType;
+import com.twosigma.beakerx.kernel.msg.JupyterMessages;
 import com.twosigma.beakerx.message.Message;
 
 import java.nio.file.Path;
@@ -30,7 +32,7 @@ import java.util.Set;
 
 public interface KernelFunctionality {
 
-  void publish(Message message);
+  void publish(List<Message> message);
 
   void addComm(String commId, Comm comm);
 
@@ -48,7 +50,7 @@ public interface KernelFunctionality {
 
   Set<String> getCommHashSet();
 
-  void setShellOptions(KernelParameters kernelParameters);
+  void setShellOptions(EvaluatorParameters kernelParameters);
 
   void cancelExecution();
 
@@ -56,15 +58,15 @@ public interface KernelFunctionality {
 
   void run();
 
-  SimpleEvaluationObject executeCode(String code, Message message, int executionCount, ExecuteCodeCallback executeCodeCallback);
+  TryResult executeCode(String code, SimpleEvaluationObject seo);
 
   AutocompleteResult autocomplete(String code, int cursorPos);
+
+  InspectResult inspect(String code, int cursorPos);
 
   void sendBusyMessage(Message message);
 
   void sendIdleMessage(Message message);
-
-  boolean addJarToClasspath(PathToJar path);
 
   List<Path> addJarsToClasspath(List<PathToJar> paths);
 
@@ -72,14 +74,17 @@ public interface KernelFunctionality {
 
   Imports getImports();
 
-  void addImport(ImportPath anImport);
+  AddImportStatus addImport(ImportPath anImport);
 
   void removeImport(ImportPath anImport);
 
-  List<MagicCommandType> getMagicCommands();
+  List<MagicCommandType> getMagicCommandTypes();
 
-  interface ExecuteCodeCallback {
-    void execute(SimpleEvaluationObject seo);
-  }
+  Path getTempFolder();
 
+  Path getCacheFolder();
+
+  Class<?> loadClass(String clazzName) throws ClassNotFoundException;
+
+  void registerMagicCommandType(MagicCommandType magicCommandType);
 }

@@ -17,11 +17,16 @@
 package com.twosigma.beakerx.chart.xychart.plotitem;
 
 import com.twosigma.beakerx.chart.Color;
+import com.twosigma.beakerx.util.DateUtil;
 import org.apache.commons.lang3.SerializationUtils;
 
 import java.io.Serializable;
-
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Calendar;
 import java.util.Date;
+
 
 /**
  * Text
@@ -41,16 +46,28 @@ public class Text implements Serializable, Cloneable {
     return x;
   }
 
-  public void setX(Object x) {
-    if (x instanceof Number) {
-      this.x = (Number) x;
-    } else if (x instanceof Date) {
-      Date date = (Date) x;
-      this.x = date.getTime();
-    } else {
-      throw new IllegalArgumentException("x coordinate should be a number or java.util.Date object");
-    }
+  public void setX(Number x) {
+    this.x = x;
+  }
 
+  public void setX(Date x) {
+    this.x = DateUtil.dateToLong(x);
+  }
+
+  public void setX(Calendar x) {
+    this.x = DateUtil.dateToLong(x);
+  }
+
+  public void setX(Instant x) {
+    this.x = DateUtil.dateToLong(x);
+  }
+
+  public void setX(LocalDateTime x) {
+    this.x = DateUtil.dateToLong(x);
+  }
+
+  public void setX(LocalDate x) {
+    this.x = DateUtil.dateToLong(x);
   }
 
   public Number getY() {

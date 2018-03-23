@@ -26,7 +26,6 @@ import org.junit.Test;
 import java.util.LinkedHashMap;
 import java.util.List;
 
-import static com.twosigma.beakerx.chart.serializer.AbstractChartSerializer.LOG_Y;
 import static com.twosigma.beakerx.chart.serializer.HistogramSerializer.BIN_COUNT;
 import static com.twosigma.beakerx.chart.serializer.HistogramSerializer.COLOR;
 import static com.twosigma.beakerx.chart.serializer.HistogramSerializer.COLORS;
@@ -34,7 +33,6 @@ import static com.twosigma.beakerx.chart.serializer.HistogramSerializer.CUMULATI
 import static com.twosigma.beakerx.chart.serializer.HistogramSerializer.DISPLAY_MODE;
 import static com.twosigma.beakerx.chart.serializer.HistogramSerializer.GRAPHICS_LIST;
 import static com.twosigma.beakerx.chart.serializer.HistogramSerializer.LOG;
-import static com.twosigma.beakerx.chart.serializer.HistogramSerializer.NAMES;
 import static com.twosigma.beakerx.chart.serializer.HistogramSerializer.NORMED;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,6 +46,14 @@ public class HistogramTest extends AbstractChartTest<Histogram> {
   public void init() throws Exception {
     list1 = asList(1, 2);
     list2 = asList(3, 4);
+  }
+
+  @Test
+  public void defaultBinCountEquals10() {
+    //given
+    histogram = new Histogram();
+    //then
+    assertThat(histogram.getBinCount()).isEqualTo(10);
   }
 
   @Test
@@ -186,7 +192,7 @@ public class HistogramTest extends AbstractChartTest<Histogram> {
     assertThat(histogram.getColors()).isNotEmpty();
     LinkedHashMap model = getModelUpdate();
     assertThat(model.size()).isEqualTo(1);
-    List<String> actual = (List<String>)model.get(COLORS);
+    List<String> actual = (List<String>) model.get(COLORS);
     assertThat(actual.get(0)).startsWith("#");
   }
 
@@ -195,7 +201,7 @@ public class HistogramTest extends AbstractChartTest<Histogram> {
     //given
     histogram = createWidget();
     //when
-    histogram.setColor("blue");
+    histogram.setColor(asList("blue"));
   }
 
   @Override
@@ -209,7 +215,7 @@ public class HistogramTest extends AbstractChartTest<Histogram> {
   @Test
   public void shouldSendCommMsgWhenLogYChange() {
     //given
-    AbstractChart chart =createWidget();
+    AbstractChart chart = createWidget();
     //when
     chart.setLogY(true);
     //then

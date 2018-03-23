@@ -17,15 +17,21 @@
 package com.twosigma.beakerx.scala.evaluator;
 
 import com.google.inject.Provider;
+import com.twosigma.beakerx.NamespaceClient;
+import com.twosigma.beakerx.TryResult;
 import com.twosigma.beakerx.autocomplete.AutocompleteResult;
 import com.twosigma.beakerx.evaluator.BaseEvaluator;
-import com.twosigma.beakerx.NamespaceClient;
 import com.twosigma.beakerx.evaluator.JobDescriptor;
-import com.twosigma.beakerx.jvm.classloader.DynamicClassLoaderSimple;
+import com.twosigma.beakerx.evaluator.TempFolderFactory;
+import com.twosigma.beakerx.evaluator.TempFolderFactoryImpl;
+import com.twosigma.beakerx.jvm.classloader.BeakerxUrlClassLoader;
 import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.jvm.serialization.BeakerObjectConverter;
 import com.twosigma.beakerx.jvm.threads.BeakerCellExecutor;
 import com.twosigma.beakerx.jvm.threads.CellExecutor;
+import com.twosigma.beakerx.kernel.EvaluatorParameters;
+import com.twosigma.beakerx.kernel.ImportPath;
+import com.twosigma.beakerx.kernel.PathToJar;
 import com.twosigma.beakerx.scala.serializers.ScalaCollectionDeserializer;
 import com.twosigma.beakerx.scala.serializers.ScalaCollectionSerializer;
 import com.twosigma.beakerx.scala.serializers.ScalaListOfPrimitiveTypeMapsSerializer;
@@ -38,68 +44,151 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.net.MalformedURLException;
+import java.util.List;
+import java.util.concurrent.Executors;
 
 public class ScalaEvaluator extends BaseEvaluator {
 
   private final static Logger logger = LoggerFactory.getLogger(ScalaEvaluator.class.getName());
   private BeakerxObjectFactory beakerxObjectFactory;
-  private ScalaWorkerThread workerThread;
   private final Provider<BeakerObjectConverter> objectSerializerProvider;
   private static boolean autoTranslationSetup = false;
+  private BeakerxUrlClassLoader classLoader;
+  private ScalaEvaluatorGlue shell;
 
-  public ScalaEvaluator(String id, String sId, Provider<BeakerObjectConverter> osp) {
-    this(id, sId, osp, new BeakerCellExecutor("scala"), new BeakerxObjectFactoryImpl());
+  public ScalaEvaluator(String id, String sId, Provider<BeakerObjectConverter> osp, EvaluatorParameters evaluatorParameters) {
+    this(id, sId, osp, new BeakerCellExecutor("scala"), new BeakerxObjectFactoryImpl(), new TempFolderFactoryImpl(), evaluatorParameters);
   }
 
-  public ScalaEvaluator(String id, String sId, Provider<BeakerObjectConverter> osp, CellExecutor cellExecutor, BeakerxObjectFactory beakerxObjectFactory) {
-    super(id, sId, cellExecutor);
-    objectSerializerProvider = osp;
+  public ScalaEvaluator(String id, String sId, Provider<BeakerObjectConverter> osp, CellExecutor cellExecutor, BeakerxObjectFactory beakerxObjectFactory, TempFolderFactory tempFolderFactory, EvaluatorParameters evaluatorParameters) {
+    super(id, sId, cellExecutor, tempFolderFactory, evaluatorParameters);
+    this.objectSerializerProvider = osp;
     this.beakerxObjectFactory = beakerxObjectFactory;
-    workerThread = new ScalaWorkerThread(this);
-    workerThread.start();
-    try {
-      newAutoCompleteEvaluator();
-    } catch (MalformedURLException e) {
-    }
+    this.classLoader = newClassLoader();
+    this.shell = createNewEvaluator();
+  }
+
+  @Override
+  public TryResult evaluate(SimpleEvaluationObject seo, String code) {
+    return evaluate(seo, new ScalaWorkerThread(this, new JobDescriptor(code, seo)));
+  }
+
+  @Override
+  protected void addJarToClassLoader(PathToJar pathToJar) {
+    classLoader.addJar(pathToJar);
+  }
+
+  @Override
+  protected void addImportToClassLoader(ImportPath anImport) {
+    addImportToShell(this.shell, anImport);
+  }
+
+  @Override
+  protected void doReloadEvaluator() {
+    this.classLoader = newClassLoader();
+    this.shell = createNewEvaluator();
   }
 
   @Override
   protected void doResetEnvironment() {
-    workerThread.updateLoader();
-    try {
-      newAutoCompleteEvaluator();
-    } catch (MalformedURLException e) {
-    }
-    workerThread.halt();
+    this.classLoader = newClassLoader();
+    this.shell = createNewEvaluator();
+    executorService.shutdown();
+    executorService = Executors.newSingleThreadExecutor();
   }
 
   @Override
   public void exit() {
-    workerThread.doExit();
+    super.exit();
     cancelExecution();
-    workerThread.halt();
+    executorService.shutdown();
   }
 
   @Override
-  public void evaluate(SimpleEvaluationObject seo, String code) {
-    workerThread.add(new JobDescriptor(code, seo));
+  public ClassLoader getClassLoader() {
+    return this.classLoader;
+  }
+
+  ScalaEvaluatorGlue getShell() {
+    return shell;
   }
 
   @Override
   public AutocompleteResult autocomplete(String code, int caretPosition) {
-    if (acshell != null) {
-      int lineStart = 0;
-      String[] sv = code.substring(0, caretPosition).split("\n");
-      for (int i = 0; i < sv.length - 1; i++) {
-        acshell.evaluate2(sv[i]);
-        caretPosition -= sv[i].length() + 1;
-        lineStart += sv[i].length() + 1;
-      }
-      AutocompleteResult lineCompletion = acshell.autocomplete(sv[sv.length - 1], caretPosition);
-      return new AutocompleteResult(lineCompletion.getMatches(), lineCompletion.getStartIndex() + lineStart);
+    AutocompleteResult lineCompletion = shell.autocomplete(code, caretPosition);
+    return new AutocompleteResult(lineCompletion.getMatches(), lineCompletion.getStartIndex());
+  }
+
+  private String adjustImport(String imp) {
+    if (imp.startsWith("import"))
+      imp = imp.substring(6).trim();
+    // Scala doesn't need "static"
+    if (imp.startsWith("static"))
+      imp = imp.substring(6).trim();
+    // May need more of these, but all Scala keywords that aren't Java keywords is probably overkill
+    if (imp.contains(".object.")) {
+      imp = imp.replace(".object.", ".`object`.");
     }
-    return null;
+    if (imp.endsWith(".*"))
+      imp = imp.substring(0, imp.length() - 1) + "_";
+    return imp;
+  }
+
+  private ScalaEvaluatorGlue createNewEvaluator() {
+    logger.debug("creating new evaluator");
+    String loader_cp = createLoaderCp();
+    ScalaEvaluatorGlue shell = new ScalaEvaluatorGlue(this.classLoader, loader_cp, getOutDir());
+    if (!getImports().isEmpty()) {
+      addImportsToShell(shell, getImports().getImportPaths());
+    }
+    logger.debug("creating beaker object");
+    // ensure object is created
+    NamespaceClient.getBeaker(getSessionId());
+    String r = shell.evaluate2(this.beakerxObjectFactory.create(getSessionId()));
+    if (r != null && !r.isEmpty()) {
+      logger.warn("ERROR creating beaker object: {}", r);
+    }
+    return shell;
+  }
+
+  private void addImportsToShell(ScalaEvaluatorGlue shell, List<ImportPath> importsPaths) {
+    if (!importsPaths.isEmpty()) {
+      String[] imp = importsPaths.stream().map(importPath -> adjustImport(importPath.asString())).toArray(String[]::new);
+      logger.debug("importing : {}", importsPaths);
+      if (!shell.addImports(imp)) {
+        logger.warn("ERROR: cannot add import '{}'", (Object[]) imp);
+      }
+    }
+  }
+
+  private void addImportToShell(ScalaEvaluatorGlue shell, ImportPath importPath) {
+    String imp = importPath.asString().trim();
+    imp = adjustImport(imp);
+    if (!imp.isEmpty()) {
+      logger.debug("importing : {}", imp);
+      if (!shell.addImport(imp))
+        logger.warn("ERROR: cannot add import '{}'", imp);
+    }
+  }
+
+  /*
+   * Scala uses multiple classloaders and (unfortunately) cannot fallback to the java one while compiling scala code so we
+   * have to build our DynamicClassLoader and also build a proper classpath for the compiler classloader.
+   */
+  private BeakerxUrlClassLoader newClassLoader() {
+    logger.debug("creating new loader");
+    BeakerxUrlClassLoader cl = new BeakerxUrlClassLoader(ClassLoader.getSystemClassLoader());
+    cl.addPathToJars(getClasspath().getPaths());
+    return cl;
+  }
+
+  private String createLoaderCp() {
+    String loader_cp = "";
+    for (int i = 0; i < getClasspath().size(); i++) {
+      loader_cp += getClasspath().get(i);
+      loader_cp += File.pathSeparatorChar;
+    }
+    return loader_cp + File.pathSeparatorChar + System.getProperty("java.class.path");
   }
 
   public void setupAutoTranslation() {
@@ -119,119 +208,4 @@ public class ScalaEvaluator extends BaseEvaluator {
     autoTranslationSetup = true;
   }
 
-  private ScalaEvaluatorGlue shell;
-  private String loader_cp = "";
-  private ScalaEvaluatorGlue acshell;
-  private String acloader_cp = "";
-
-  String adjustImport(String imp) {
-    if (imp.startsWith("import"))
-      imp = imp.substring(6).trim();
-    // Scala doesn't need "static"
-    if (imp.startsWith("static"))
-      imp = imp.substring(6).trim();
-    // May need more of these, but all Scala keywords that aren't Java keywords is probably overkill
-    if (imp.contains(".object.")) {
-      imp = imp.replace(".object.", ".`object`.");
-    }
-    if (imp.endsWith(".*"))
-      imp = imp.substring(0, imp.length() - 1) + "_";
-    return imp;
-  }
-
-  private ClassLoader newAutoCompleteClassLoader() throws MalformedURLException {
-    logger.debug("creating new autocomplete loader");
-    acloader_cp = "";
-    for (int i = 0; i < classPath.size(); i++) {
-      acloader_cp += classPath.get(i);
-      acloader_cp += File.pathSeparatorChar;
-    }
-    acloader_cp += outDir;
-
-    DynamicClassLoaderSimple cl = new DynamicClassLoaderSimple(ClassLoader.getSystemClassLoader());
-    cl.addJars(classPath.getPathsAsStrings());
-    cl.addDynamicDir(outDir);
-    return cl;
-  }
-
-  private void newAutoCompleteEvaluator() throws MalformedURLException {
-    logger.debug("creating new autocomplete evaluator");
-    acshell = new ScalaEvaluatorGlue(newAutoCompleteClassLoader(),
-            acloader_cp + File.pathSeparatorChar + System.getProperty("java.class.path"), outDir);
-
-    if (!imports.isEmpty()) {
-      for (int i = 0; i < imports.getImportPaths().size(); i++) {
-        String imp = imports.getImportPaths().get(i).asString().trim();
-        imp = adjustImport(imp);
-        if (!imp.isEmpty()) {
-          if (!acshell.addImport(imp))
-            logger.warn("ERROR: cannot add import '{}'", imp);
-        }
-      }
-    }
-
-    // ensure object is created
-    NamespaceClient.getBeaker(sessionId);
-
-    String r = acshell.evaluate2(this.beakerxObjectFactory.create(this.sessionId));
-    if (r != null && !r.isEmpty()) {
-      logger.warn("ERROR creating beaker beaker: {}", r);
-    }
-  }
-
-  void newEvaluator() throws MalformedURLException {
-    logger.debug("creating new evaluator");
-    shell = new ScalaEvaluatorGlue(newClassLoader(),
-            loader_cp + File.pathSeparatorChar + System.getProperty("java.class.path"), getOutDir());
-
-    if (!getImports().isEmpty()) {
-      for (int i = 0; i < getImports().getImportPaths().size(); i++) {
-        String imp = getImports().getImportPaths().get(i).asString().trim();
-        imp = adjustImport(imp);
-        if (!imp.isEmpty()) {
-          logger.debug("importing : {}", imp);
-          if (!shell.addImport(imp))
-            logger.warn("ERROR: cannot add import '{}'", imp);
-        }
-      }
-    }
-
-    logger.debug("creating beaker object");
-
-    // ensure object is created
-    NamespaceClient.getBeaker(getSessionId());
-
-    String r = shell.evaluate2(this.beakerxObjectFactory.create(getSessionId()));
-    if (r != null && !r.isEmpty()) {
-      logger.warn("ERROR creating beaker object: {}", r);
-    }
-  }
-
-  /*
- * Scala uses multiple classloaders and (unfortunately) cannot fallback to the java one while compiling scala code so we
- * have to build our DynamicClassLoader and also build a proper classpath for the compiler classloader.
- */
-  private ClassLoader newClassLoader() throws MalformedURLException {
-    logger.debug("creating new loader");
-
-    loader_cp = "";
-    for (int i = 0; i < getClasspath().size(); i++) {
-      loader_cp += getClasspath().get(i);
-      loader_cp += File.pathSeparatorChar;
-    }
-    loader_cp += getOutDir();
-    DynamicClassLoaderSimple cl = new DynamicClassLoaderSimple(ClassLoader.getSystemClassLoader());
-    cl.addJars(getClasspath().getPathsAsStrings());
-    cl.addDynamicDir(getOutDir());
-    return cl;
-  }
-
-
-  public ScalaEvaluatorGlue getShell() {
-    return shell;
-  }
-
-  public void clearShell() {
-    this.shell = null;
-  }
 }

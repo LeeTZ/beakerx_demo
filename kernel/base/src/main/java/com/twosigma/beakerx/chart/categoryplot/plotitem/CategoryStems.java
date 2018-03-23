@@ -22,38 +22,10 @@ import com.twosigma.beakerx.chart.xychart.plotitem.StrokeType;
 
 import java.util.List;
 
-public class CategoryStems extends CategoryGraphics {
-  private Number       baseBase;
-  private List<Number> bases;
+public class CategoryStems extends BasedCategoryGraphics {
   private Float      width     = 1.5f;
   private StrokeType baseStyle = StrokeType.SOLID;
   private List<StrokeType> styles;
-
-
-  public void setBase(Object base) {
-    if (base instanceof Number) {
-      this.baseBase = ((Number) base).floatValue();
-    } else if (base instanceof List) {
-      @SuppressWarnings("unchecked")
-      List<Number> ss = (List<Number>) base;
-      setBases(ss);
-    } else {
-      throw new IllegalArgumentException(
-        "setBase takes Number or List of Number");
-    }
-  }
-
-  private void setBases(List<Number> bases) {
-    this.bases = bases;
-  }
-
-  public Number getBase() {
-    return this.baseBase;
-  }
-
-  public List<Number> getBases() {
-    return this.bases;
-  }
 
   public void setWidth(Float width) {
     this.width = width;
@@ -63,17 +35,12 @@ public class CategoryStems extends CategoryGraphics {
     return this.width;
   }
 
-  public void setStyle(Object style) {
-    if (style instanceof StrokeType) {
-      this.baseStyle = (StrokeType) style;
-    } else if (style instanceof List) {
-      @SuppressWarnings("unchecked")
-      List<StrokeType> ss = (List<StrokeType>) style;
-      setStyles(ss);
-    } else {
-      throw new IllegalArgumentException(
-        "setStyle takes StrokeType or List of StrokeType");
-    }
+  public void setStyle(StrokeType style) {
+    this.baseStyle = style;
+  }
+
+  public void setStyle(List<StrokeType> styles) {
+    setStyles(styles);
   }
 
   private void setStyles(List<StrokeType> styles) {

@@ -17,10 +17,11 @@
 package com.twosigma.beakerx.jupyter.comm;
 
 import com.twosigma.beakerx.KernelTest;
+import com.twosigma.beakerx.evaluator.InternalVariable;
+import com.twosigma.beakerx.jvm.object.SimpleEvaluationObject;
 import com.twosigma.beakerx.kernel.KernelManager;
 import com.twosigma.beakerx.kernel.msg.JupyterMessages;
 import com.twosigma.beakerx.kernel.comm.Comm;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import com.twosigma.beakerx.message.Message;
@@ -30,6 +31,9 @@ import java.io.Serializable;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static com.twosigma.beakerx.kernel.msg.JupyterMessages.COMM_MSG;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class CommTest {
 
@@ -49,12 +53,47 @@ public class CommTest {
   }
 
   @Test
+  public void commCreatedWithParentMessageShouldAlwaysSendHeaderFromThisParentMessage() throws NoSuchAlgorithmException {
+    //given
+    submitCodeToExecution();
+    //when
+    Message parentMessage = new Message();
+    comm.open(parentMessage);
+    assertThat(kernel.getPublishedMessages().get(0).getParentHeader()).isEqualTo(parentMessage.getHeader());
+    kernel.clearPublishedMessages();
+    //then
+    comm.send(COMM_MSG, Comm.Buffer.EMPTY, comm.getData());
+    assertThat(kernel.getPublishedMessages().get(0).getParentHeader()).isEqualTo(parentMessage.getHeader());
+  }
+
+  @Test
+  public void commCreatedWithoutParentMessageShouldAlwaysSendHeaderFromMessageGivenFromInternalVariable() throws NoSuchAlgorithmException {
+    // code from first execution
+    Message message1 = submitCodeToExecution();
+    comm.open();
+    assertThat(kernel.getPublishedMessages().get(0).getParentHeader()).isEqualTo(message1.getHeader());
+    kernel.clearPublishedMessages();
+    // code from second execution
+    Message message2 = submitCodeToExecution();
+    comm.send(COMM_MSG, Comm.Buffer.EMPTY, comm.getData());
+    assertThat(kernel.getPublishedMessages().get(0).getParentHeader()).isEqualTo(message2.getHeader());
+  }
+
+  private Message submitCodeToExecution() {
+    SimpleEvaluationObject value = new SimpleEvaluationObject("ok");
+    Message jupyterMessage = new Message();
+    value.setJupyterMessage(jupyterMessage);
+    InternalVariable.setValue(value);
+    return jupyterMessage;
+  }
+
+  @Test
   public void commOpen_shouldSendIOPubSocketMessage() throws NoSuchAlgorithmException {
     //when
     comm.open();
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
-    Assertions.assertThat(kernel.getPublishedMessages().get(0)).isNotNull();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages().get(0)).isNotNull();
   }
 
   @Test
@@ -62,7 +101,7 @@ public class CommTest {
     //when
     comm.open();
     //then
-    Assertions.assertThat(kernel.isCommPresent(comm.getCommId())).isTrue();
+    assertThat(kernel.isCommPresent(comm.getCommId())).isTrue();
   }
 
   @Test
@@ -70,10 +109,10 @@ public class CommTest {
     //when
     comm.open();
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
     Message sendMessage = kernel.getPublishedMessages().get(0);
-    Assertions.assertThat(sendMessage.getHeader().getType())
-        .isEqualTo(JupyterMessages.COMM_OPEN.getName());
+    assertThat(sendMessage.getHeader().getType())
+            .isEqualTo(JupyterMessages.COMM_OPEN.getName());
   }
 
   @Test
@@ -81,9 +120,9 @@ public class CommTest {
     //when
     comm.open();
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
     Message sendMessage = kernel.getPublishedMessages().get(0);
-    Assertions.assertThat((String) sendMessage.getContent().get(Comm.COMM_ID)).isNotEmpty();
+    assertThat((String) sendMessage.getContent().get(Comm.COMM_ID)).isNotEmpty();
   }
 
   @Test
@@ -91,9 +130,9 @@ public class CommTest {
     //when
     comm.open();
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
     Message sendMessage = kernel.getPublishedMessages().get(0);
-    Assertions.assertThat((String) sendMessage.getContent().get(Comm.TARGET_NAME)).isNotEmpty();
+    assertThat((String) sendMessage.getContent().get(Comm.TARGET_NAME)).isNotEmpty();
   }
 
   @Test
@@ -102,9 +141,9 @@ public class CommTest {
     //when
     comm.open();
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
     Message sendMessage = kernel.getPublishedMessages().get(0);
-    Assertions.assertThat((Map) sendMessage.getContent().get(Comm.DATA)).isNotEmpty();
+    assertThat((Map) sendMessage.getContent().get(Comm.DATA)).isNotEmpty();
   }
 
   @Test
@@ -114,9 +153,9 @@ public class CommTest {
     //when
     comm.open();
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
     Message sendMessage = kernel.getPublishedMessages().get(0);
-    Assertions.assertThat((String) sendMessage.getContent().get(Comm.TARGET_MODULE)).isNotEmpty();
+    assertThat((String) sendMessage.getContent().get(Comm.TARGET_MODULE)).isNotEmpty();
   }
 
   @Test
@@ -124,8 +163,8 @@ public class CommTest {
     //when
     comm.close();
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
-    Assertions.assertThat(kernel.getPublishedMessages().get(0)).isNotNull();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages().get(0)).isNotNull();
   }
 
   @Test
@@ -133,7 +172,7 @@ public class CommTest {
     //when
     comm.close();
     //then
-    Assertions.assertThat(kernel.isCommPresent(comm.getCommId())).isFalse();
+    assertThat(kernel.isCommPresent(comm.getCommId())).isFalse();
   }
 
   @Test
@@ -141,10 +180,10 @@ public class CommTest {
     //when
     comm.close();
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
     Message sendMessage = kernel.getPublishedMessages().get(0);
-    Assertions.assertThat(sendMessage.getHeader().getType())
-        .isEqualTo(JupyterMessages.COMM_CLOSE.getName());
+    assertThat(sendMessage.getHeader().getType())
+            .isEqualTo(JupyterMessages.COMM_CLOSE.getName());
   }
 
   @Test
@@ -153,50 +192,50 @@ public class CommTest {
     //when
     comm.close();
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
     Message sendMessage = kernel.getPublishedMessages().get(0);
-    Assertions.assertThat((Map) sendMessage.getContent().get(Comm.DATA)).isEmpty();
+    assertThat((Map) sendMessage.getContent().get(Comm.DATA)).isEmpty();
   }
 
   @Test
   public void commSend_shouldSendIOPubSocketMessage() throws NoSuchAlgorithmException {
     //when
-    comm.send();
+    comm.send(COMM_MSG, Comm.Buffer.EMPTY, comm.getData());
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
-    Assertions.assertThat(kernel.getPublishedMessages().get(0)).isNotNull();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages().get(0)).isNotNull();
   }
 
   @Test
   public void commSend_sentMessageHasTypeIsCommClose() throws NoSuchAlgorithmException {
     //when
-    comm.send();
+    comm.send(COMM_MSG, Comm.Buffer.EMPTY, comm.getData());
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
     Message sendMessage = kernel.getPublishedMessages().get(0);
-    Assertions.assertThat(sendMessage.getHeader().getType())
-        .isEqualTo(JupyterMessages.COMM_MSG.getName());
+    assertThat(sendMessage.getHeader().getType())
+            .isEqualTo(JupyterMessages.COMM_MSG.getName());
   }
 
   @Test
   public void commSend_sentMessageHasCommId() throws NoSuchAlgorithmException {
     //when
-    comm.send();
+    comm.send(COMM_MSG, Comm.Buffer.EMPTY, comm.getData());
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
     Message sendMessage = kernel.getPublishedMessages().get(0);
-    Assertions.assertThat((String) sendMessage.getContent().get(Comm.COMM_ID)).isNotEmpty();
+    assertThat((String) sendMessage.getContent().get(Comm.COMM_ID)).isNotEmpty();
   }
 
   @Test
   public void commClose_sentMessageHasData() throws NoSuchAlgorithmException {
     initCommData(comm);
     //when
-    comm.send();
+    comm.send(COMM_MSG, Comm.Buffer.EMPTY, comm.getData());
     //then
-    Assertions.assertThat(kernel.getPublishedMessages()).isNotEmpty();
+    assertThat(kernel.getPublishedMessages()).isNotEmpty();
     Message sendMessage = kernel.getPublishedMessages().get(0);
-    Assertions.assertThat((Map) sendMessage.getContent().get(Comm.DATA)).isNotEmpty();
+    assertThat((Map) sendMessage.getContent().get(Comm.DATA)).isNotEmpty();
   }
 
   private void initCommData(Comm comm) {

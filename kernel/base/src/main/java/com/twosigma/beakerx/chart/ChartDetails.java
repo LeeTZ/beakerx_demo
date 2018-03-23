@@ -16,6 +16,7 @@
 
 package com.twosigma.beakerx.chart;
 
+import com.twosigma.beakerx.widget.CommActions;
 import org.apache.commons.lang3.StringUtils;
 
 import com.twosigma.beakerx.NamespaceClient;
@@ -26,7 +27,7 @@ import com.twosigma.beakerx.chart.actions.XYGraphicsActionObject;
 import com.twosigma.beakerx.chart.categoryplot.CategoryPlot;
 import com.twosigma.beakerx.chart.xychart.CombinedPlot;
 import com.twosigma.beakerx.chart.xychart.XYChart;
-import com.twosigma.beakerx.widgets.BeakerxWidget;
+import com.twosigma.beakerx.widget.BeakerxWidget;
 import com.twosigma.beakerx.handler.Handler;
 import com.twosigma.beakerx.message.Message;
 
@@ -35,7 +36,7 @@ import java.util.List;
 
 public abstract class ChartDetails extends BeakerxWidget {
 
-  protected GraphicsActionObject details;
+  private GraphicsActionObject details;
 
   public GraphicsActionObject getDetails() {
     return details;
@@ -44,31 +45,30 @@ public abstract class ChartDetails extends BeakerxWidget {
   public void setDetails(GraphicsActionObject details) {
     this.details = details;
   }
-  
+
   protected void openComm() {
     super.openComm();
-    getComm().addMsgCallbackList((Handler<Message>)this::handleSetDetails, (Handler<Message>)this::handleClick, (Handler<Message>)this::handleKey);
+    getComm().addMsgCallbackList((Handler<Message>) this::handleSetDetails, (Handler<Message>) this::handleClick, (Handler<Message>) this::handleKey);
   }
-  
+
   private void handleSetDetails(Message message) {
-    handleCommEventSync(message, CommActions.ACTIONDETAILS, (ActionPerformed)this::onActionDetails);
+    handleCommEventSync(message, CommActions.ACTIONDETAILS, this::onActionDetails);
   }
-  
+
   private void handleClick(Message message) {
-    handleCommEventSync(message, CommActions.ONCLICK, (ActionPerformed)this::onClickAction);
+    handleCommEventSync(message, CommActions.ONCLICK, this::onClickAction);
   }
-  
+
   private void handleKey(Message message) {
-    handleCommEventSync(message, CommActions.ONKEY, (ActionPerformed)this::onKeyAction);
+    handleCommEventSync(message, CommActions.ONKEY, this::onKeyAction);
   }
-  
-  
+
   private void onKeyAction(HashMap content, Message message) {
     GraphicsActionObject info = getDetailsFromMessage(content);
     String graphicsId = getGraphicsUid(content);
     Graphics g = getGraphicsById(getGraphics(info, this), graphicsId);
     if (g != null) {
-      g.fireOnKey(this, info.getKey(), info, message);
+      g.fireOnKey(info.getKey(), info, message);
       sendModel();
     }
   }
@@ -78,7 +78,7 @@ public abstract class ChartDetails extends BeakerxWidget {
     String graphicsId = getGraphicsUid(content);
     Graphics g = getGraphicsById(getGraphics(info, this), graphicsId);
     if (g != null) {
-      g.fireClick(this, info, message);
+      g.fireClick(info, message);
       sendModel();
     }
   }
@@ -88,12 +88,16 @@ public abstract class ChartDetails extends BeakerxWidget {
     String graphicsId = getGraphicsUid(content);
     Graphics g = getGraphicsById(getGraphics(info, this), graphicsId);
     info.setGraphics(g);
-    setDetails(info);
+    updateDetails(info);
     if (CommActions.ONCLICK.equals(info.getActionType())) {
       NamespaceClient.getBeaker().runByTag(info.getTag());
     } else if (CommActions.ONKEY.equals(info.getActionType())) {
       NamespaceClient.getBeaker().runByTag(info.getTag());
     }
+  }
+
+  protected void updateDetails(GraphicsActionObject info) {
+    setDetails(info);
   }
 
   protected String getGraphicsUid(HashMap content) {
@@ -116,37 +120,37 @@ public abstract class ChartDetails extends BeakerxWidget {
         String type = (String) params.get("type");
         switch (type) {
 
-        case "CategoryGraphicsActionObject": {
-          ret = new CategoryGraphicsActionObject();
-          CategoryGraphicsActionObject retObject = (CategoryGraphicsActionObject) ret;
-          if (params.containsKey("category")) {
-            retObject.setCategory((int) params.get("category"));
+          case "CategoryGraphicsActionObject": {
+            ret = new CategoryGraphicsActionObject();
+            CategoryGraphicsActionObject retObject = (CategoryGraphicsActionObject) ret;
+            if (params.containsKey("category")) {
+              retObject.setCategory((int) params.get("category"));
+            }
+            if (params.containsKey("series")) {
+              retObject.setSeries((int) params.get("series"));
+            }
           }
-          if (params.containsKey("series")) {
-            retObject.setSeries((int) params.get("series"));
-          }
-        }
           break;
 
-        case "CombinedPlotActionObject": {
-          ret = new CombinedPlotActionObject();
-          CombinedPlotActionObject retObject = (CombinedPlotActionObject) ret;
-          if (params.containsKey("subplotIndex")) {
-            retObject.setSubplotIndex((int) params.get("subplotIndex"));
+          case "CombinedPlotActionObject": {
+            ret = new CombinedPlotActionObject();
+            CombinedPlotActionObject retObject = (CombinedPlotActionObject) ret;
+            if (params.containsKey("subplotIndex")) {
+              retObject.setSubplotIndex((int) params.get("subplotIndex"));
+            }
+            if (params.containsKey("index")) {
+              retObject.setIndex((int) params.get("index"));
+            }
           }
-          if (params.containsKey("index")) {
-            retObject.setIndex((int) params.get("index"));
-          }
-        }
           break;
 
-        case "XYGraphicsActionObject": {
-          ret = new XYGraphicsActionObject();
-          XYGraphicsActionObject retObject = (XYGraphicsActionObject) ret;
-          if (params.containsKey("index")) {
-            retObject.setIndex((int) params.get("index"));
+          case "XYGraphicsActionObject": {
+            ret = new XYGraphicsActionObject();
+            XYGraphicsActionObject retObject = (XYGraphicsActionObject) ret;
+            if (params.containsKey("index")) {
+              retObject.setIndex((int) params.get("index"));
+            }
           }
-        }
           break;
         }
 
@@ -167,14 +171,14 @@ public abstract class ChartDetails extends BeakerxWidget {
     }
     return ret;
   }
-  
-  
+
+
   /**
    * Taken from code{@code com.twosigma.beaker.groovy.rest.ChartRest#getGraphics}
-   * 
-   * @param info
-   * @param chart
-   * @return
+   *
+   * @param info  GraphicsActionObject
+   * @param chart ChartDetails
+   * @return list of Graphics for given plot data
    */
   protected List<? extends Graphics> getGraphics(GraphicsActionObject info, ChartDetails chart) {
     List<? extends Graphics> graphics = null;
@@ -191,10 +195,10 @@ public abstract class ChartDetails extends BeakerxWidget {
 
   /**
    * code{@code com.twosigma.beaker.groovy.rest.ChartRest#getGraphicsById}
-   * 
-   * @param graphicsList
-   * @param graphicsId
-   * @return
+   *
+   * @param graphicsList list of Graphics objects
+   * @param graphicsId   string with id of Graphics object
+   * @return Graphics with given id or null if it wasn't found
    */
   protected Graphics getGraphicsById(List<? extends Graphics> graphicsList, String graphicsId) {
     if (graphicsList != null) {
@@ -207,5 +211,5 @@ public abstract class ChartDetails extends BeakerxWidget {
     return null;
   }
 
-  
+
 }
