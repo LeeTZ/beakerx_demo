@@ -48,7 +48,7 @@ how to install and run BeakerX.
 ### Dependencies:
 
 * [conda](https://www.anaconda.com/download/)
-* [yarn](https://yarnpkg.com/lang/en/docs/install/)
+* [yarn >= 1.0.1](https://yarnpkg.com/lang/en/docs/install/)
 
 ### Build and Install
 
@@ -72,6 +72,12 @@ In order to run demo files for data catalog you need the following libraries in 
 ```
 pip install quandl matplotlib
 ```
+
+### Screenshot for Data Browser
+
+Here is a screenshot of open data browser, if correctly installed.
+
+![Databrowser](databrowser.png)
 
 ### Build and Install for Jupyter Lab
 
