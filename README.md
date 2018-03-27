@@ -61,6 +61,12 @@ conda install -y -c conda-forge ipywidgets
 beakerx install
 ```
 
+If you are using Ubuntu 17+ and you see an error while yarn install. Try:
+
+```
+sudo apt remove cmdtest
+```
+
 In order to run demo files for data catalog you need the following libraries in your conda env:
 
 ```
