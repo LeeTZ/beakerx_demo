@@ -51,7 +51,7 @@ define([
   './shared/bkCoreManager',
   'big.js',
   './extension/UIOptionsHelper',
-  './DataBrowser.js' 
+  './dataBrowser/DataBrowser' 
 ], function(
   configmod,
   comm,
